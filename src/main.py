@@ -1,6 +1,11 @@
 import sys
 
+import cv2
+
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication, QMainWindow
+
+from ui.video_widget import VideoWidget
 
 
 class MainWindow(QMainWindow):
@@ -9,6 +14,34 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle("Open Fish Counter")
         self.resize(1200, 800)
+
+        self.video_widget = VideoWidget()
+
+        self.setCentralWidget(self.video_widget)
+
+        #
+        # Pour l'instant :
+        # webcam OpenCV par défaut
+        #
+        self.cap = cv2.VideoCapture(0)
+
+        self.timer = QTimer()
+
+        self.timer.timeout.connect(self.update_frame)
+
+        self.timer.start(30)
+
+    def update_frame(self):
+        ok, frame = self.cap.read()
+
+        if not ok:
+            return
+
+        self.video_widget.set_frame(frame)
+
+    def closeEvent(self, event):
+        self.cap.release()
+        super().closeEvent(event)
 
 
 app = QApplication(sys.argv)
