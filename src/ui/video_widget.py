@@ -16,12 +16,18 @@ class VideoWidget(QLabel):
 
         self.grid_rows = 8
         self.grid_cols = 8
+        self.selected_cell = None
+
+        self.frame_width = 0
+        self.frame_height = 0
 
     def set_frame(self, frame):
 
         frame = frame.copy()
 
         height, width, _ = frame.shape
+        self.frame_width = width
+        self.frame_height = height
 
         cell_width = width // self.grid_cols
         cell_height = height // self.grid_rows
@@ -48,6 +54,43 @@ class VideoWidget(QLabel):
                 (width, y),
                 (0, 255, 0),
                 1,
+            )
+
+        if self.selected_cell is not None:
+
+            row = self.selected_cell // self.grid_cols
+            col = self.selected_cell % self.grid_cols
+
+            x = col * cell_width
+            y = row * cell_height
+
+            cv2.rectangle(
+                frame,
+                (x, y),
+                (x + cell_width, y + cell_height),
+                (0, 0, 255),
+                -1,
+            )
+
+            alpha = 0.25
+
+            overlay = frame.copy()
+
+            cv2.rectangle(
+                overlay,
+                (x, y),
+                (x + cell_width, y + cell_height),
+                (0, 0, 255),
+                -1,
+            )
+
+            cv2.addWeighted(
+                overlay,
+                alpha,
+                frame,
+                1 - alpha,
+                0,
+                frame,
             )
 
         # Numérotation
@@ -107,3 +150,24 @@ class VideoWidget(QLabel):
             )
 
         super().resizeEvent(event)
+
+    def mousePressEvent(self, event):
+
+        if self.frame_width == 0:
+            return
+
+        display_width = self.width()
+        display_height = self.height()
+
+        x_ratio = event.position().x() / display_width
+        y_ratio = event.position().y() / display_height
+
+        col = int(x_ratio * self.grid_cols)
+        row = int(y_ratio * self.grid_rows)
+
+        col = min(col, self.grid_cols - 1)
+        row = min(row, self.grid_rows - 1)
+
+        self.selected_cell = row * self.grid_cols + col
+
+        print(f"Cellule sélectionnée : {self.selected_cell}")
