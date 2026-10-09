@@ -3,7 +3,16 @@ import sys
 import cv2
 
 from PySide6.QtCore import QTimer
-from PySide6.QtWidgets import QApplication, QMainWindow
+from PySide6.QtWidgets import (
+   QApplication,
+    QMainWindow,
+    QWidget,
+    QHBoxLayout,
+    QLabel,
+    QSpinBox,
+    QCheckBox,
+    QVBoxLayout
+)
 
 from ui.video_widget import VideoWidget
 
@@ -16,8 +25,39 @@ class MainWindow(QMainWindow):
         self.resize(1200, 800)
 
         self.video_widget = VideoWidget()
+        self.video_widget.cell_selected.connect(
+        self.on_cell_selected
+)
 
-        self.setCentralWidget(self.video_widget)
+        self.cell_label = QLabel("Cellule : aucune")
+
+        self.enabled_checkbox = QCheckBox("Activée")
+        self.enabled_checkbox.setChecked(True)
+
+        self.threshold_spinbox = QSpinBox()
+        self.threshold_spinbox.setRange(0, 100)
+        self.threshold_spinbox.setValue(10)
+
+        main_widget = QWidget()
+
+        layout = QHBoxLayout(main_widget)
+
+        side_panel = QWidget()
+
+        side_layout = QVBoxLayout(side_panel)
+
+        side_layout.addWidget(self.cell_label)
+        side_layout.addWidget(self.enabled_checkbox)
+
+        side_layout.addWidget(QLabel("Seuil (%)"))
+        side_layout.addWidget(self.threshold_spinbox)
+
+        side_layout.addStretch()
+
+        layout.addWidget(self.video_widget, 4)
+        layout.addWidget(side_panel, 1)
+
+        self.setCentralWidget(main_widget)
 
         #
         # Pour l'instant :
@@ -42,6 +82,22 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event):
         self.cap.release()
         super().closeEvent(event)
+
+    def on_cell_selected(self, cell_id):
+
+        self.cell_label.setText(
+            f"Cellule : {cell_id}"
+        )
+
+        cell = self.video_widget.cells[cell_id]
+
+        self.enabled_checkbox.setChecked(
+            cell["enabled"]
+        )
+
+        self.threshold_spinbox.setValue(
+            cell["threshold"]
+        )
 
 
 app = QApplication(sys.argv)

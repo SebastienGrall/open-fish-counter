@@ -1,4 +1,4 @@
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import QLabel
 
@@ -6,9 +6,12 @@ import cv2
 
 
 class VideoWidget(QLabel):
+    cell_selected = Signal(int)
 
     def __init__(self):
         super().__init__()
+
+
 
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setText("Aucun flux vidéo")
@@ -16,6 +19,16 @@ class VideoWidget(QLabel):
 
         self.grid_rows = 8
         self.grid_cols = 8
+        
+        self.cells = {}
+
+        for cell_id in range(self.grid_rows * self.grid_cols):
+
+            self.cells[cell_id] = {
+                "enabled": True,
+                "threshold": 10,
+            }
+
         self.selected_cell = None
 
         self.frame_width = 0
@@ -170,4 +183,4 @@ class VideoWidget(QLabel):
 
         self.selected_cell = row * self.grid_cols + col
 
-        print(f"Cellule sélectionnée : {self.selected_cell}")
+        self.cell_selected.emit(self.selected_cell)
