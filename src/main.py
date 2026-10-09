@@ -23,7 +23,7 @@ class MainWindow(QMainWindow):
         # Pour l'instant :
         # webcam OpenCV par défaut
         #
-        self.cap = cv2.VideoCapture(0)
+        self.cap = cv2.VideoCapture(1)
 
         self.timer = QTimer()
 
