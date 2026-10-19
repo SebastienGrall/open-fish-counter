@@ -59,7 +59,7 @@ class MainWindow(QMainWindow):
         self.threshold_spinbox.setValue(10)
 
         self.event_status_label = QLabel("État : aucun mouvement")
-        self.triggered_cells_label = QLabel("Cellules déclenchées : aucune")
+        self.triggered_cells_label = QLabel("Cellules déclenchées : 0")
         self.max_motion_label = QLabel("Mouvement maximal : 0.0 %")
         self.event_status_label.setStyleSheet(
             "font-weight: bold; color: green;"
@@ -280,7 +280,7 @@ class MainWindow(QMainWindow):
             )
 
             self.triggered_cells_label.setText(
-                f"Cellules déclenchées : {cells_text}"
+                f"Cellules déclenchées : {len(triggered_cells)}"
             )
 
         else:
@@ -296,7 +296,7 @@ class MainWindow(QMainWindow):
             )
 
             self.triggered_cells_label.setText(
-                "Cellules déclenchées : aucune"
+                "Cellules déclenchées : 0"
             )
 
         self.max_motion_label.setText(
