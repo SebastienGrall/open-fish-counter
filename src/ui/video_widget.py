@@ -19,6 +19,8 @@ class VideoWidget(QLabel):
 
         self.grid_rows = 8
         self.grid_cols = 8
+
+        self.motion_levels = {}
         
         self.cells = {}
 
@@ -34,6 +36,9 @@ class VideoWidget(QLabel):
         self.frame_width = 0
         self.frame_height = 0
 
+    def set_motion_levels(self, motion_levels):
+        self.motion_levels = motion_levels
+
     def set_frame(self, frame):
 
         frame = frame.copy()
@@ -44,6 +49,50 @@ class VideoWidget(QLabel):
 
         cell_width = width // self.grid_cols
         cell_height = height // self.grid_rows
+
+        motion_overlay = frame.copy()
+
+        for row in range(self.grid_rows):
+            for col in range(self.grid_cols):
+                cell_id = row * self.grid_cols + col
+
+                cell = self.cells[cell_id]
+
+                if not cell["enabled"]:
+                    continue
+
+                motion_percentage = self.motion_levels.get(
+                    cell_id,
+                    0.0,
+                )
+
+                threshold = cell["threshold"]
+
+                if motion_percentage < threshold:
+                    continue
+
+                x1 = col * width // self.grid_cols
+                x2 = (col + 1) * width // self.grid_cols
+
+                y1 = row * height // self.grid_rows
+                y2 = (row + 1) * height // self.grid_rows
+
+                cv2.rectangle(
+                    motion_overlay,
+                    (x1, y1),
+                    (x2, y2),
+                    (0, 165, 255),
+                    -1,
+                )
+
+        cv2.addWeighted(
+            motion_overlay,
+            0.25,
+            frame,
+            0.75,
+            0,
+            frame,
+        )
 
         # Lignes verticales
         for col in range(self.grid_cols + 1):
@@ -115,16 +164,36 @@ class VideoWidget(QLabel):
                 x = col * cell_width
                 y = row * cell_height
 
+                if self.cells[cell_id]["enabled"]:
+                    text_color = (0, 255, 0)
+                else:
+                    text_color = (128, 128, 128)
+
                 cv2.putText(
                     frame,
                     str(cell_id),
                     (x + 5, y + 20),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     0.5,
-                    (0, 255, 0),
+                    text_color,
                     1,
                     cv2.LINE_AA,
                 )
+
+                motion_percentage = self.motion_levels.get(
+                    cell_id,
+                    0.0,
+                )
+
+                cv2.putText(
+                    frame,
+                    f"{motion_percentage:.1f}%",
+                    (x + 5, y + 40),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.4,
+                    (255, 255, 255),
+                    1,
+                    cv2.LINE_AA)
 
                 cell_id += 1
 

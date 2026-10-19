@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
 )
 
 from ui.video_widget import VideoWidget
+from motion.motion_detector import MotionDetector
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CONFIG_FILE = PROJECT_ROOT / "data" / "grid_config.json"
@@ -31,6 +32,11 @@ class MainWindow(QMainWindow):
 
         self.video_widget = VideoWidget()
         self.load_grid_config()
+
+        self.motion_detector = MotionDetector(
+            grid_rows=self.video_widget.grid_rows,
+            grid_cols=self.video_widget.grid_cols,
+        )
 
         self.video_widget.cell_selected.connect(
         self.on_cell_selected
@@ -90,6 +96,14 @@ class MainWindow(QMainWindow):
 
         if not ok:
             return
+
+        motion_levels = self.motion_detector.process_frame(
+            frame
+        )
+
+        self.video_widget.set_motion_levels(
+            motion_levels
+        )
 
         self.video_widget.set_frame(frame)
 
