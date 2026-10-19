@@ -5,7 +5,7 @@
     },
     "cells": {
         "0": {
-            "enabled": true,
+            "enabled": false,
             "threshold": 10
         },
         "1": {
@@ -13,7 +13,7 @@
             "threshold": 10
         },
         "2": {
-            "enabled": false,
+            "enabled": true,
             "threshold": 10
         },
         "3": {

@@ -1,3 +1,13 @@
 .venv/
 __pycache__/
 *.pyc
+
+# Enregistrements vidéo
+data/recordings/*
+!data/recordings/.gitkeep
+
+# Formats vidéo, sécurité supplémentaire
+*.mp4
+*.avi
+*.mkv
+*.mov

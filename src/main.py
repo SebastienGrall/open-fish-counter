@@ -21,9 +21,13 @@ from PySide6.QtWidgets import (
 from ui.video_widget import VideoWidget
 from motion.motion_detector import MotionDetector
 from recording.frame_buffer import FrameBuffer
+from recording.video_recorder import VideoRecorder
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CONFIG_FILE = PROJECT_ROOT / "data" / "grid_config.json"
+RECORDINGS_DIRECTORY = (
+    PROJECT_ROOT / "data" / "recordings"
+)
 
 
 class MainWindow(QMainWindow):
@@ -46,7 +50,30 @@ class MainWindow(QMainWindow):
         self.frame_buffer = FrameBuffer(
             duration_seconds=self.pre_event_seconds
         )
-        self.event_frames = []
+
+        self.cap = cv2.VideoCapture(1)
+
+        if not self.cap.isOpened():
+            raise RuntimeError(
+                "Impossible d'ouvrir la caméra à l'index 1."
+            )
+            
+        camera_fps = self.cap.get(
+            cv2.CAP_PROP_FPS
+        )
+
+        if camera_fps <= 0:
+            camera_fps = 25.0
+
+        self.video_recorder = VideoRecorder(
+            recordings_directory=RECORDINGS_DIRECTORY,
+            fps=camera_fps,
+        )
+
+        print(
+            f"Fréquence d'enregistrement : "
+            f"{camera_fps:.2f} images/s"
+        )
 
         self.video_widget.cell_selected.connect(
         self.on_cell_selected
@@ -74,6 +101,7 @@ class MainWindow(QMainWindow):
         ###-
 
         self.buffer_status_label = QLabel("Buffer : 0 image, 0.00 s")
+        self.event_started_this_frame = False
 
         self.threshold_spinbox.setRange(0, 100)
         self.threshold_spinbox.setValue(10)
@@ -118,7 +146,7 @@ class MainWindow(QMainWindow):
         # Pour l'instant :
         # webcam OpenCV par défaut
         #
-        self.cap = cv2.VideoCapture(1)
+        #self.cap = cv2.VideoCapture(1)
 
         self.timer = QTimer()
 
@@ -132,6 +160,7 @@ class MainWindow(QMainWindow):
         if not ok:
             return
 
+        self.event_started_this_frame = False
         # Conserve en mémoire la dernière seconde de vidéo.
         self.frame_buffer.add_frame(frame)
     
@@ -153,9 +182,13 @@ class MainWindow(QMainWindow):
             f"{self.frame_buffer.get_duration():.2f} s"
         )
 
-        if self.event_active:
-            self.event_frames.append(
-            frame.copy()
+        if (
+            self.event_active
+            and self.video_recorder.is_recording
+            and not self.event_started_this_frame
+        ):
+            self.video_recorder.write_frame(
+                frame
             )
 
         self.video_widget.set_frame(frame)
@@ -196,7 +229,13 @@ class MainWindow(QMainWindow):
             print(f"Impossible de charger la configuration : {error}")
 
     def closeEvent(self, event):
+        self.timer.stop()
+
+        if self.video_recorder.is_recording:
+            self.video_recorder.stop()
+
         self.cap.release()
+
         super().closeEvent(event)
 
     def on_cell_selected(self, cell_id):
@@ -222,17 +261,12 @@ class MainWindow(QMainWindow):
         self.threshold_spinbox.blockSignals(False)
 
     def on_event_started(self):
-        self.event_frames = (
-            self.frame_buffer.get_frames()
-        )
+        self.event_started_this_frame = True
 
-        buffered_frame_count = len(
-            self.event_frames
-        )
+        pre_event_frames = self.frame_buffer.get_frames()
 
-        buffered_duration = (
-            self.frame_buffer.get_duration()
-        )
+        buffered_frame_count = len(pre_event_frames)
+        buffered_duration = self.frame_buffer.get_duration()
 
         print("=== DÉBUT DE L'ÉVÉNEMENT ===")
 
@@ -242,15 +276,21 @@ class MainWindow(QMainWindow):
             f"{buffered_duration:.2f} seconde(s)"
         )
 
-    def on_event_ended(self):
-        frame_count = len(self.event_frames)
+        self.video_recorder.start(
+            pre_event_frames
+        )
 
+
+    def on_event_ended(self):
         print("=== FIN DE L'ÉVÉNEMENT ===")
 
-        print(
-        f"Nombre total d'images du clip : "
-        f"{frame_count}"
-        )
+        saved_path = self.video_recorder.stop()
+
+        if saved_path is not None:
+            print(
+                f"Vidéo sauvegardée : "
+                f"{saved_path}"
+            )
 
     def save_grid_config(self):
         CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)

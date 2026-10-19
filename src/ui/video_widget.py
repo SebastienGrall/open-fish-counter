@@ -221,10 +221,11 @@ class VideoWidget(QLabel):
         )
 
     def resizeEvent(self, event):
+        pixmap = self.pixmap()
 
-        if self.pixmap() is not None:
+        if pixmap is not None and not pixmap.isNull():
             self.setPixmap(
-                self.pixmap().scaled(
+                pixmap.scaled(
                     self.size(),
                     Qt.AspectRatioMode.KeepAspectRatio,
                     Qt.TransformationMode.SmoothTransformation,
