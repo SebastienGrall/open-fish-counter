@@ -1,6 +1,8 @@
 import sys
-
+import json
+from pathlib import Path
 import cv2
+
 
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import (
@@ -16,6 +18,9 @@ from PySide6.QtWidgets import (
 
 from ui.video_widget import VideoWidget
 
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+CONFIG_FILE = PROJECT_ROOT / "data" / "grid_config.json"
+
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -25,16 +30,25 @@ class MainWindow(QMainWindow):
         self.resize(1200, 800)
 
         self.video_widget = VideoWidget()
+        self.load_grid_config()
+
         self.video_widget.cell_selected.connect(
         self.on_cell_selected
-)
+        )
 
         self.cell_label = QLabel("Cellule : aucune")
 
         self.enabled_checkbox = QCheckBox("Activée")
         self.enabled_checkbox.setChecked(True)
+        self.enabled_checkbox.checkStateChanged.connect(
+             self.on_enabled_changed
+        )   
 
         self.threshold_spinbox = QSpinBox()
+        self.threshold_spinbox.valueChanged.connect(
+        self.on_threshold_changed
+        )
+        self.current_cell = None
         self.threshold_spinbox.setRange(0, 100)
         self.threshold_spinbox.setValue(10)
 
@@ -79,11 +93,47 @@ class MainWindow(QMainWindow):
 
         self.video_widget.set_frame(frame)
 
+    def load_grid_config(self):
+        if not CONFIG_FILE.exists():
+            print(
+                "Aucune configuration existante, "
+                "utilisation des valeurs par défaut."
+            )
+            return
+
+        try:
+            with CONFIG_FILE.open("r", encoding="utf-8") as config_file:
+                config = json.load(config_file)
+
+            saved_cells = config.get("cells", {})
+
+            for cell_id_text, saved_cell in saved_cells.items():
+                cell_id = int(cell_id_text)
+
+                if cell_id not in self.video_widget.cells:
+                    continue
+
+                self.video_widget.cells[cell_id]["enabled"] = saved_cell.get(
+                    "enabled",
+                    True,
+                )
+
+                self.video_widget.cells[cell_id]["threshold"] = saved_cell.get(
+                    "threshold",
+                    10,
+                )
+
+            print(f"Configuration chargée depuis : {CONFIG_FILE}")
+
+        except (OSError, json.JSONDecodeError, ValueError) as error:
+            print(f"Impossible de charger la configuration : {error}")
+
     def closeEvent(self, event):
         self.cap.release()
         super().closeEvent(event)
 
     def on_cell_selected(self, cell_id):
+        self.current_cell = cell_id
 
         self.cell_label.setText(
             f"Cellule : {cell_id}"
@@ -91,14 +141,75 @@ class MainWindow(QMainWindow):
 
         cell = self.video_widget.cells[cell_id]
 
+        self.enabled_checkbox.blockSignals(True)
         self.enabled_checkbox.setChecked(
             cell["enabled"]
         )
+        self.enabled_checkbox.blockSignals(False)
 
+        # Évite que setValue() déclenche on_threshold_changed()
+        self.threshold_spinbox.blockSignals(True)
         self.threshold_spinbox.setValue(
             cell["threshold"]
         )
+        self.threshold_spinbox.blockSignals(False)
 
+    def save_grid_config(self):
+        CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+
+        config = {
+            "grid": {
+                "rows": self.video_widget.grid_rows,
+                "cols": self.video_widget.grid_cols,
+            },
+            "cells": self.video_widget.cells,
+        }
+
+        temporary_file = CONFIG_FILE.with_suffix(".tmp")
+
+        try:
+            with temporary_file.open("w", encoding="utf-8") as config_file:
+                json.dump(
+                    config,
+                    config_file,
+                    indent=4,
+                    ensure_ascii=False,
+                )
+
+            temporary_file.replace(CONFIG_FILE)
+
+            print(f"Configuration sauvegardée dans : {CONFIG_FILE}")
+
+        except OSError as error:
+            print(f"Impossible de sauvegarder la configuration : {error}")
+        
+    def on_threshold_changed(self, value):
+        if self.current_cell is None:
+            return
+
+        self.video_widget.cells[self.current_cell]["threshold"] = value
+
+        print(
+            f"Cellule {self.current_cell} "
+            f"nouveau seuil : {value}"
+        )
+
+        self.save_grid_config()
+
+    def on_enabled_changed(self, state):
+        if self.current_cell is None:
+            return
+
+        enabled = self.enabled_checkbox.isChecked()
+
+        self.video_widget.cells[self.current_cell]["enabled"] = enabled
+
+        print(
+            f"Cellule {self.current_cell} "
+            f"activée : {enabled}"
+        )
+
+        self.save_grid_config()
 
 app = QApplication(sys.argv)
 

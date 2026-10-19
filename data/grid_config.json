@@ -1,0 +1,264 @@
+{
+    "grid": {
+        "rows": 8,
+        "cols": 8
+    },
+    "cells": {
+        "0": {
+            "enabled": false,
+            "threshold": 25
+        },
+        "1": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "2": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "3": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "4": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "5": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "6": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "7": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "8": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "9": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "10": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "11": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "12": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "13": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "14": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "15": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "16": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "17": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "18": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "19": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "20": {
+            "enabled": true,
+            "threshold": 16
+        },
+        "21": {
+            "enabled": true,
+            "threshold": 5
+        },
+        "22": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "23": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "24": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "25": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "26": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "27": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "28": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "29": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "30": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "31": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "32": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "33": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "34": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "35": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "36": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "37": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "38": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "39": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "40": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "41": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "42": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "43": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "44": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "45": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "46": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "47": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "48": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "49": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "50": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "51": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "52": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "53": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "54": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "55": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "56": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "57": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "58": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "59": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "60": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "61": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "62": {
+            "enabled": true,
+            "threshold": 10
+        },
+        "63": {
+            "enabled": false,
+            "threshold": 100
+        }
+    }
+}
