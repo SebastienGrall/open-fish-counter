@@ -58,6 +58,13 @@ class MainWindow(QMainWindow):
         self.threshold_spinbox.setRange(0, 100)
         self.threshold_spinbox.setValue(10)
 
+        self.event_status_label = QLabel("État : aucun mouvement")
+        self.triggered_cells_label = QLabel("Cellules déclenchées : aucune")
+        self.max_motion_label = QLabel("Mouvement maximal : 0.0 %")
+        self.event_status_label.setStyleSheet(
+            "font-weight: bold; color: green;"
+        )
+
         main_widget = QWidget()
 
         layout = QHBoxLayout(main_widget)
@@ -71,6 +78,13 @@ class MainWindow(QMainWindow):
 
         side_layout.addWidget(QLabel("Seuil (%)"))
         side_layout.addWidget(self.threshold_spinbox)
+
+        side_layout.addSpacing(30)
+
+        side_layout.addWidget(QLabel("Détection"))
+        side_layout.addWidget(self.event_status_label)
+        side_layout.addWidget(self.triggered_cells_label)
+        side_layout.addWidget(self.max_motion_label)
 
         side_layout.addStretch()
 
@@ -103,6 +117,10 @@ class MainWindow(QMainWindow):
 
         self.video_widget.set_motion_levels(
             motion_levels
+        )
+
+        self.update_event_indicator(
+        motion_levels
         )
 
         self.video_widget.set_frame(frame)
@@ -224,6 +242,66 @@ class MainWindow(QMainWindow):
         )
 
         self.save_grid_config()
+
+    def update_event_indicator(self, motion_levels):
+        triggered_cells = []
+
+        max_motion = 0.0
+
+        for cell_id, motion_percentage in motion_levels.items():
+            cell = self.video_widget.cells[cell_id]
+
+            if not cell["enabled"]:
+                continue
+
+            max_motion = max(
+                max_motion,
+                motion_percentage,
+            )
+
+            if motion_percentage >= cell["threshold"]:
+                triggered_cells.append(cell_id)
+
+        if triggered_cells:
+            self.event_status_label.setText(
+                "État : MOUVEMENT DÉTECTÉ"
+            )
+
+            self.event_status_label.setStyleSheet(
+                """
+                font-weight: bold;
+                color: red;
+                """
+            )
+
+            cells_text = ", ".join(
+                str(cell_id)
+                for cell_id in triggered_cells
+            )
+
+            self.triggered_cells_label.setText(
+                f"Cellules déclenchées : {cells_text}"
+            )
+
+        else:
+            self.event_status_label.setText(
+                "État : aucun mouvement"
+            )
+
+            self.event_status_label.setStyleSheet(
+                """
+                font-weight: bold;
+                color: green;
+                """
+            )
+
+            self.triggered_cells_label.setText(
+                "Cellules déclenchées : aucune"
+            )
+
+        self.max_motion_label.setText(
+            f"Mouvement maximal : {max_motion:.1f} %"
+        )
 
 app = QApplication(sys.argv)
 
