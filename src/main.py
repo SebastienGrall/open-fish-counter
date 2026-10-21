@@ -15,7 +15,8 @@ from PySide6.QtWidgets import (
     QLabel,
     QSpinBox,
     QCheckBox,
-    QVBoxLayout
+    QVBoxLayout,
+    QPushButton,
 )
 
 from ui.video_widget import VideoWidget
@@ -99,6 +100,7 @@ class MainWindow(QMainWindow):
         self.no_motion_delay = 1.0 # Temps sans mouvement avant de terminer l'événement.
         self.last_motion_time = None # Heure de la dernière détection brute.
         ###-
+        self.recording_enabled = True
 
         self.buffer_status_label = QLabel("Buffer : 0 image, 0.00 s")
         self.event_started_this_frame = False
@@ -112,6 +114,33 @@ class MainWindow(QMainWindow):
         self.event_status_label.setStyleSheet(
             "font-weight: bold; color: green;"
         )
+
+        self.recording_status_label = QLabel(
+            "Enregistrement automatique : ACTIVÉ"
+        )
+
+        self.recording_status_label.setStyleSheet(
+            "font-weight: bold; color: green;"
+        )
+
+        self.start_recording_button = QPushButton(
+            "Activer l'enregistrement"
+        )
+
+        self.stop_recording_button = QPushButton(
+            "Arrêter l'enregistrement"
+        )
+
+        self.start_recording_button.clicked.connect(
+            self.enable_recording
+        )
+
+        self.stop_recording_button.clicked.connect(
+            self.disable_recording
+        )
+
+        self.start_recording_button.setEnabled(False)
+        self.stop_recording_button.setEnabled(True)
 
         main_widget = QWidget()
 
@@ -134,6 +163,25 @@ class MainWindow(QMainWindow):
         side_layout.addWidget(self.triggered_cells_label)
         side_layout.addWidget(self.max_motion_label)
         side_layout.addWidget(self.buffer_status_label)
+
+        side_layout.addSpacing(30)
+
+        side_layout.addWidget(
+            QLabel("Enregistrement")
+        )
+
+        side_layout.addWidget(
+            self.recording_status_label
+        )
+
+        side_layout.addWidget(
+            self.start_recording_button
+        )
+
+        side_layout.addWidget(
+            self.stop_recording_button
+        )
+
 
         side_layout.addStretch()
 
@@ -192,6 +240,49 @@ class MainWindow(QMainWindow):
             )
 
         self.video_widget.set_frame(frame)
+
+    def enable_recording(self):
+        self.recording_enabled = True
+
+        self.recording_status_label.setText(
+            "Enregistrement automatique : ACTIVÉ"
+        )
+
+        self.recording_status_label.setStyleSheet(
+            "font-weight: bold; color: green;"
+        )
+
+        self.start_recording_button.setEnabled(False)
+        self.stop_recording_button.setEnabled(True)
+
+        print("Enregistrement automatique activé.")
+
+    def disable_recording(self):
+        self.recording_enabled = False
+
+        self.recording_status_label.setText(
+            "Enregistrement automatique : ARRÊTÉ"
+        )
+
+        self.recording_status_label.setStyleSheet(
+            "font-weight: bold; color: red;"
+        )
+
+        self.start_recording_button.setEnabled(True)
+        self.stop_recording_button.setEnabled(False)
+
+        # Si un fichier est actuellement ouvert,
+        # on le termine proprement.
+        if self.video_recorder.is_recording:
+            saved_path = self.video_recorder.stop()
+
+            if saved_path is not None:
+                print(
+                    "Enregistrement interrompu et sauvegardé : "
+                    f"{saved_path}"
+                )
+
+        print("Enregistrement automatique arrêté.")
 
     def load_grid_config(self):
         if not CONFIG_FILE.exists():
@@ -263,9 +354,7 @@ class MainWindow(QMainWindow):
     def on_event_started(self):
         self.event_started_this_frame = True
 
-        pre_event_frames = (
-            self.frame_buffer.get_frames()
-        )
+        pre_event_frames = self.frame_buffer.get_frames()
 
         video_start_time = (
             self.frame_buffer.get_first_capture_time()
@@ -311,6 +400,13 @@ class MainWindow(QMainWindow):
             f"{estimated_fps:.2f}"
         )
 
+        if not self.recording_enabled:
+            print(
+                "Événement détecté, mais "
+                "l'enregistrement est désactivé."
+            )
+            return
+
         self.video_recorder.start(
             pre_event_frames=pre_event_frames,
             video_start_time=video_start_time,
@@ -319,6 +415,9 @@ class MainWindow(QMainWindow):
 
     def on_event_ended(self):
         print("=== FIN DE L'ÉVÉNEMENT ===")
+
+        if not self.video_recorder.is_recording:
+            return
 
         saved_path = self.video_recorder.stop()
 
