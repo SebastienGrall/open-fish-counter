@@ -1,4 +1,18 @@
 {
+    "camera": {
+        "index": 0,
+        "width": 1080,
+        "height": 540,
+        "fps": 30.0
+    },
+    "detection": {
+        "pixel_threshold": 25,
+        "required_motion_frames": 3,
+        "no_motion_delay": 1.0
+    },
+    "recording": {
+        "pre_event_seconds": 1.0
+    },
     "grid": {
         "rows": 8,
         "cols": 8

@@ -8,7 +8,7 @@ import cv2
 
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import (
-   QApplication,
+    QApplication,
     QMainWindow,
     QWidget,
     QHBoxLayout,
@@ -18,12 +18,14 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QPushButton,
     QComboBox,
+    QDialog,
 )
 
 from ui.video_widget import VideoWidget
 from motion.motion_detector import MotionDetector
 from recording.frame_buffer import FrameBuffer
 from recording.video_recorder import VideoRecorder
+from ui.settings_dialog import SettingsDialog
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CONFIG_FILE = PROJECT_ROOT / "data" / "grid_config.json"
@@ -40,32 +42,103 @@ class MainWindow(QMainWindow):
         self.resize(1200, 800)
 
         self.video_widget = VideoWidget()
+
+        # Valeurs générales par défaut.
+        # load_grid_config() pourra les remplacer.
+        self.loaded_general_settings = {
+            "pixel_threshold": 25,
+            "required_motion_frames": 3,
+            "no_motion_delay": 1.0,
+            "pre_event_seconds": 1.0,
+            "camera_index": 1,
+            "camera_width": 720,
+            "camera_height": 540,
+            "camera_fps": 30.0,
+        }
+
+        # Charge les cellules et les paramètres généraux depuis le JSON.
         self.load_grid_config()
 
+        # Création du moteur de détection avec les paramètres chargés.
         self.motion_detector = MotionDetector(
             grid_rows=self.video_widget.grid_rows,
             grid_cols=self.video_widget.grid_cols,
+            pixel_threshold=int(
+                self.loaded_general_settings[
+                    "pixel_threshold"
+                ]
+            ),
         )
 
-        self.pre_event_seconds = 1.0
+        # Paramètres généraux chargés.
+        self.required_motion_frames = int(
+            self.loaded_general_settings[
+                "required_motion_frames"
+            ]
+        )
 
+        self.no_motion_delay = float(
+            self.loaded_general_settings[
+                "no_motion_delay"
+            ]
+        )
+
+        self.pre_event_seconds = float(
+            self.loaded_general_settings[
+                "pre_event_seconds"
+            ]
+        )
+
+        self.camera_index = int(
+            self.loaded_general_settings[
+                "camera_index"
+            ]
+        )
+
+        self.camera_width = int(
+            self.loaded_general_settings[
+                "camera_width"
+            ]
+        )
+
+        self.camera_height = int(
+            self.loaded_general_settings[
+                "camera_height"
+            ]
+        )
+
+        self.camera_fps = float(
+            self.loaded_general_settings[
+                "camera_fps"
+            ]
+        )
+
+        # Buffer créé seulement après avoir défini pre_event_seconds.
         self.frame_buffer = FrameBuffer(
             duration_seconds=self.pre_event_seconds
         )
 
-        self.cap = cv2.VideoCapture(1)
+        # État de la sélection.
+        self.current_cell = None
 
-        if not self.cap.isOpened():
-            raise RuntimeError(
-                "Impossible d'ouvrir la caméra à l'index 1."
-            )
-            
+        # État de détection.
+        self.event_active = False
+        self.motion_frame_count = 0
+        self.last_motion_time = None
+        self.event_started_this_frame = False
+
+        # État de l'enregistrement.
+        self.recording_enabled = True
+
+        # Ouverture de la caméra.
+        self.open_camera()
+
         camera_fps = self.cap.get(
             cv2.CAP_PROP_FPS
         )
 
         if camera_fps <= 0:
-            camera_fps = 25.0
+            camera_fps = self.camera_fps
 
         self.video_recorder = VideoRecorder(
             recordings_directory=RECORDINGS_DIRECTORY,
@@ -77,45 +150,56 @@ class MainWindow(QMainWindow):
             f"{camera_fps:.2f} images/s"
         )
 
+        # Signal de sélection des cellules.
         self.video_widget.cell_selected.connect(
-        self.on_cell_selected
+            self.on_cell_selected
         )
 
-        self.cell_label = QLabel("Cellule : aucune")
+        # Réglages de la cellule sélectionnée.
+        self.cell_label = QLabel(
+            "Cellule : aucune"
+        )
 
-        self.enabled_checkbox = QCheckBox("Activée")
+        self.enabled_checkbox = QCheckBox(
+            "Activée"
+        )
+
         self.enabled_checkbox.setChecked(True)
+
         self.enabled_checkbox.checkStateChanged.connect(
-             self.on_enabled_changed
-        )   
+            self.on_enabled_changed
+        )
 
         self.threshold_spinbox = QSpinBox()
-        self.threshold_spinbox.valueChanged.connect(
-        self.on_threshold_changed
-        )
-        self.current_cell = None
-        # Stabilisation des événements et paramétrage déclenchement
-        self.event_active = False
-        self.motion_frame_count = 0  #  Nombre d'images consécutives avec mouvement
-        self.required_motion_frames = 3 # Nombre d'images nécessaires pour déclencher.
-        self.no_motion_delay = 1.0 # Temps sans mouvement avant de terminer l'événement.
-        self.last_motion_time = None # Heure de la dernière détection brute.
-        ###-
-        self.recording_enabled = True
-
-        self.buffer_status_label = QLabel("Buffer : 0 image, 0.00 s")
-        self.event_started_this_frame = False
-
         self.threshold_spinbox.setRange(0, 100)
         self.threshold_spinbox.setValue(10)
 
-        self.event_status_label = QLabel("État : aucun mouvement")
-        self.triggered_cells_label = QLabel("Cellules déclenchées : 0")
-        self.max_motion_label = QLabel("Mouvement maximal : 0.0 %")
+        self.threshold_spinbox.valueChanged.connect(
+            self.on_threshold_changed
+        )
+
+        # Indicateurs de détection.
+        self.buffer_status_label = QLabel(
+            "Buffer : 0 image, 0.00 s"
+        )
+
+        self.event_status_label = QLabel(
+            "État : aucun mouvement"
+        )
+
+        self.triggered_cells_label = QLabel(
+            "Cellules déclenchées : 0"
+        )
+
+        self.max_motion_label = QLabel(
+            "Mouvement maximal : 0.0 %"
+        )
+
         self.event_status_label.setStyleSheet(
             "font-weight: bold; color: green;"
         )
 
+        # Contrôles de l'enregistrement.
         self.recording_status_label = QLabel(
             "Enregistrement automatique : ACTIVÉ"
         )
@@ -143,6 +227,7 @@ class MainWindow(QMainWindow):
         self.start_recording_button.setEnabled(False)
         self.stop_recording_button.setEnabled(True)
 
+        # Choix du mode d'affichage.
         self.display_mode_combo = QComboBox()
 
         self.display_mode_combo.addItem(
@@ -162,6 +247,15 @@ class MainWindow(QMainWindow):
 
         self.display_mode_combo.currentIndexChanged.connect(
             self.on_display_mode_changed
+        )
+
+        # Fenêtre des paramètres généraux.
+        self.settings_button = QPushButton(
+            "Paramètres"
+        )
+
+        self.settings_button.clicked.connect(
+            self.open_settings_dialog
         )
 
         main_widget = QWidget()
@@ -214,6 +308,11 @@ class MainWindow(QMainWindow):
             self.stop_recording_button
         )
 
+        side_layout.addSpacing(30)
+
+        side_layout.addWidget(
+            self.settings_button
+        )
 
         side_layout.addStretch()
 
@@ -327,6 +426,61 @@ class MainWindow(QMainWindow):
         try:
             with CONFIG_FILE.open("r", encoding="utf-8") as config_file:
                 config = json.load(config_file)
+
+                camera_config = config.get(
+                    "camera",
+                    {}
+                )
+
+                detection_config = config.get(
+                    "detection",
+                    {}
+                )
+
+                recording_config = config.get(
+                    "recording",
+                    {}
+                )
+
+                self.loaded_general_settings = {
+                    "camera_index": camera_config.get(
+                        "index",
+                        1,
+                    ),
+                    "camera_width": camera_config.get(
+                        "width",
+                        720,
+                    ),
+                    "camera_height": camera_config.get(
+                        "height",
+                        540,
+                    ),
+                    "camera_fps": camera_config.get(
+                        "fps",
+                        30.0,
+                    ),
+
+                    "pixel_threshold": detection_config.get(
+                        "pixel_threshold",
+                        25,
+                    ),
+                    "required_motion_frames": (
+                        detection_config.get(
+                            "required_motion_frames",
+                            3,
+                        )
+                    ),
+                    "no_motion_delay": detection_config.get(
+                        "no_motion_delay",
+                        1.0,
+                    ),
+                    "pre_event_seconds": (
+                        recording_config.get(
+                            "pre_event_seconds",
+                            1.0,
+                        )
+                    ),
+                }
 
             saved_cells = config.get("cells", {})
 
@@ -463,6 +617,29 @@ class MainWindow(QMainWindow):
         CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
 
         config = {
+            "camera": {
+                "index": self.camera_index,
+                "width": self.camera_width,
+                "height": self.camera_height,
+                "fps": self.camera_fps,
+            },
+            
+            "detection": {
+                "pixel_threshold": (
+                    self.motion_detector.pixel_threshold
+                ),
+                "required_motion_frames": (
+                    self.required_motion_frames
+                ),
+                "no_motion_delay": (
+                    self.no_motion_delay
+                ),
+            },
+            "recording": {
+                "pre_event_seconds": (
+                    self.pre_event_seconds
+                ),
+            },
             "grid": {
                 "rows": self.video_widget.grid_rows,
                 "cols": self.video_widget.grid_cols,
@@ -608,6 +785,190 @@ class MainWindow(QMainWindow):
 
         self.video_widget.set_display_mode(
             display_mode
+        )
+
+    def open_settings_dialog(self):
+        dialog = SettingsDialog(
+            pixel_threshold=(
+                self.motion_detector.pixel_threshold
+            ),
+            required_motion_frames=(
+                self.required_motion_frames
+            ),
+            no_motion_delay=(
+                self.no_motion_delay
+            ),
+            pre_event_seconds=(
+                self.pre_event_seconds
+            ),
+            camera_index=self.camera_index,
+            camera_width=self.camera_width,
+            camera_height=self.camera_height,
+            camera_fps=self.camera_fps,
+            parent=self,
+        )
+
+        result = dialog.exec()
+
+        if result != QDialog.DialogCode.Accepted:
+            return
+
+        settings = dialog.get_settings()
+
+        self.apply_general_settings(
+            settings
+        )
+
+    def apply_general_settings(self, settings):
+        self.motion_detector.pixel_threshold = int(
+            settings["pixel_threshold"]
+        )
+
+        self.required_motion_frames = int(
+            settings["required_motion_frames"]
+        )
+
+        self.no_motion_delay = float(
+            settings["no_motion_delay"]
+        )
+
+        self.pre_event_seconds = float(
+            settings["pre_event_seconds"]
+        )
+
+        self.frame_buffer.set_duration(
+            self.pre_event_seconds
+        )
+
+        new_camera_index = int(
+            settings["camera_index"]
+        )
+
+        new_camera_width = int(
+            settings["camera_width"]
+        )
+
+        new_camera_height = int(
+            settings["camera_height"]
+        )
+
+        new_camera_fps = float(
+            settings["camera_fps"]
+        )
+
+        camera_changed = (
+            new_camera_index != self.camera_index
+            or new_camera_width != self.camera_width
+            or new_camera_height != self.camera_height
+            or new_camera_fps != self.camera_fps
+        )
+
+        self.camera_index = new_camera_index
+        self.camera_width = new_camera_width
+        self.camera_height = new_camera_height
+        self.camera_fps = new_camera_fps
+
+        self.save_grid_config()
+
+        print("Paramètres généraux appliqués :")
+
+        print(
+            f"- Seuil pixel : "
+            f"{self.motion_detector.pixel_threshold}"
+        )
+
+        print(
+            f"- Images de confirmation : "
+            f"{self.required_motion_frames}"
+        )
+
+        print(
+            f"- Délai de fin : "
+            f"{self.no_motion_delay:.1f} s"
+        )
+
+        print(
+            f"- Pré-buffer : "
+            f"{self.pre_event_seconds:.1f} s"
+        )
+
+        if camera_changed:
+            self.restart_camera()
+
+    def open_camera(self):
+        self.cap = cv2.VideoCapture(
+            self.camera_index
+        )
+
+        if not self.cap.isOpened():
+            raise RuntimeError(
+                "Impossible d'ouvrir la caméra "
+                f"à l'index {self.camera_index}."
+            )
+
+        self.cap.set(
+            cv2.CAP_PROP_FRAME_WIDTH,
+            self.camera_width,
+        )
+
+        self.cap.set(
+            cv2.CAP_PROP_FRAME_HEIGHT,
+            self.camera_height,
+        )
+
+        self.cap.set(
+            cv2.CAP_PROP_FPS,
+            self.camera_fps,
+        )
+
+        actual_width = int(
+            self.cap.get(
+                cv2.CAP_PROP_FRAME_WIDTH
+            )
+        )
+
+        actual_height = int(
+            self.cap.get(
+                cv2.CAP_PROP_FRAME_HEIGHT
+            )
+        )
+
+        announced_fps = self.cap.get(
+            cv2.CAP_PROP_FPS
+        )
+
+        print(
+            "Paramètres caméra demandés : "
+            f"{self.camera_width} × "
+            f"{self.camera_height} à "
+            f"{self.camera_fps:.1f} FPS"
+        )
+
+        print(
+            "Paramètres caméra obtenus : "
+            f"{actual_width} × "
+            f"{actual_height} à "
+            f"{announced_fps:.1f} FPS"
+        )
+
+    def restart_camera(self):
+        self.timer.stop()
+
+        if self.video_recorder.is_recording:
+            self.video_recorder.stop()
+
+        self.cap.release()
+
+        self.motion_detector.reset()
+        self.frame_buffer.clear()
+
+        self.open_camera()
+
+        self.timer.start(30)
+
+        print(
+            "Caméra redémarrée avec "
+            "les nouveaux paramètres."
         )
 
 app = QApplication(sys.argv)
