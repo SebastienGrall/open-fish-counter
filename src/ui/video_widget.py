@@ -431,3 +431,14 @@ class VideoWidget(QLabel):
         self.cell_selected.emit(
             self.selected_cell
         )
+
+    def set_camera_message(self, message):
+        self.current_pixmap = None
+
+        self.displayed_image_width = 0
+        self.displayed_image_height = 0
+        self.displayed_image_x = 0
+        self.displayed_image_y = 0
+
+        self.clear()
+        self.setText(message)

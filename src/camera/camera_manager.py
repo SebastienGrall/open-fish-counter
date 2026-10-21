@@ -1,5 +1,5 @@
 import platform
-
+import time
 import cv2
 
 
@@ -32,6 +32,9 @@ class CameraManager:
         self.actual_fps = 0.0
 
         self.last_error = None
+
+        self.reconnect_interval = 2.0
+        self.last_reconnect_attempt = 0.0
 
     @property
     def is_open(self):
@@ -111,9 +114,10 @@ class CameraManager:
 
         if not ok or frame is None:
             self.last_error = (
-                "Impossible de lire une image "
-                "depuis la caméra."
+                "Connexion à la caméra perdue."
             )
+
+            self.close()
 
             return False, None
 
@@ -266,3 +270,41 @@ class CameraManager:
             return cv2.CAP_V4L2
 
         return None
+
+    def try_reconnect(self):
+        """
+        Tente de rouvrir la caméra au maximum une fois
+        par intervalle de reconnexion.
+
+        Renvoie True si la caméra est disponible.
+        """
+        if self.is_open:
+            return True
+
+        current_time = time.monotonic()
+
+        if (
+            current_time - self.last_reconnect_attempt
+            < self.reconnect_interval
+        ):
+            return False
+
+        self.last_reconnect_attempt = current_time
+
+        print(
+            "Tentative de reconnexion à la caméra "
+            f"d'index {self.camera_index}..."
+        )
+
+        opened = self.open()
+
+        if opened:
+            print("Caméra reconnectée avec succès.")
+
+        else:
+            print(
+                "Échec de la reconnexion : "
+                f"{self.last_error}"
+            )
+
+        return opened

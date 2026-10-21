@@ -403,17 +403,66 @@ class MainWindow(QMainWindow):
         self.timer.start(30)
 
     def update_frame(self):
+        if not self.camera_manager.is_open:
+            reconnected = (
+                self.camera_manager.try_reconnect()
+            )
+
+            if not reconnected:
+                self.video_widget.set_camera_message(
+                    "Caméra indisponible\n"
+                    "Tentative de reconnexion en cours..."
+                )
+                return
+
+            # La caméra vient de revenir.
+            self.motion_detector.reset()
+            self.frame_buffer.clear()
+
+            self.event_active = False
+            self.motion_frame_count = 0
+            self.last_motion_time = None
+            self.event_started_this_frame = False
+
         ok, frame = self.camera_manager.read()
 
         if not ok:
+            if self.video_recorder.is_recording:
+                saved_path = (
+                    self.video_recorder.stop()
+                )
+
+                if saved_path is not None:
+                    print(
+                        "Vidéo finalisée après perte caméra : "
+                        f"{saved_path}"
+                    )
+
+            self.event_active = False
+            self.motion_frame_count = 0
+            self.last_motion_time = None
+
+            self.video_widget.set_camera_message(
+                "Connexion caméra perdue\n"
+                "Tentative de reconnexion en cours..."
+            )
+
             return
 
         self.event_started_this_frame = False
-        # Conserve en mémoire la dernière seconde de vidéo.
+
         self.frame_buffer.add_frame(frame)
-    
-        motion_levels = self.motion_detector.process_frame(
-            frame
+
+        self.buffer_status_label.setText(
+            f"Buffer : "
+            f"{self.frame_buffer.get_frame_count()} images, "
+            f"{self.frame_buffer.get_duration():.2f} s"
+        )
+
+        motion_levels = (
+            self.motion_detector.process_frame(
+                frame
+            )
         )
 
         self.video_widget.set_motion_levels(
@@ -421,13 +470,7 @@ class MainWindow(QMainWindow):
         )
 
         self.update_event_indicator(
-        motion_levels
-        )
-
-        self.buffer_status_label.setText(
-            f"Buffer : "
-            f"{self.frame_buffer.get_frame_count()} images, "
-            f"{self.frame_buffer.get_duration():.2f} s"
+            motion_levels
         )
 
         if (
@@ -858,7 +901,6 @@ class MainWindow(QMainWindow):
             f"- Pré-buffer : "
             f"{self.pre_event_seconds:.1f} s"
         )
-
 
     def restart_camera(self):
         self.timer.stop()
