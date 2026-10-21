@@ -1,5 +1,4 @@
 import sys
-import json
 import time
 from pathlib import Path
 import cv2
@@ -26,11 +25,25 @@ from motion.motion_detector import MotionDetector
 from recording.frame_buffer import FrameBuffer
 from recording.video_recorder import VideoRecorder
 from ui.settings_dialog import SettingsDialog
+from config.config_manager import ConfigManager
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-CONFIG_FILE = PROJECT_ROOT / "data" / "grid_config.json"
+PROJECT_ROOT = (
+    Path(__file__).resolve()
+    .parent
+    .parent.
+    parent
+)
+
+CONFIG_FILE = (
+    PROJECT_ROOT
+     / "data" 
+     / "grid_config.json"
+)
+
 RECORDINGS_DIRECTORY = (
-    PROJECT_ROOT / "data" / "recordings"
+    PROJECT_ROOT
+     / "data" 
+     / "recordings"
 )
 
 class MainWindow(QMainWindow):
@@ -42,75 +55,125 @@ class MainWindow(QMainWindow):
 
         self.video_widget = VideoWidget()
 
-        # Valeurs générales par défaut.
-        # load_grid_config() pourra les remplacer.
-        self.loaded_general_settings = {
-            "pixel_threshold": 25,
-            "required_motion_frames": 3,
-            "no_motion_delay": 1.0,
-            "pre_event_seconds": 1.0,
-            "camera_index": 1,
-            "camera_width": 720,
-            "camera_height": 540,
-            "camera_fps": 30.0,
-        }
+        self.config_manager = ConfigManager(
+            CONFIG_FILE
+        )
 
-        # Charge les cellules et les paramètres généraux depuis le JSON.
-        self.load_grid_config()
+        app_config = self.config_manager.load()
+
+        camera_config = app_config["camera"]
+        detection_config = app_config["detection"]
+        recording_config = app_config["recording"]
+        grid_config = app_config["grid"]
+        cells_config = app_config["cells"]
+
+        self.video_widget.grid_rows = int(
+            grid_config.get(
+                "rows",
+                8,
+            )
+        )
+
+        self.video_widget.grid_cols = int(
+            grid_config.get(
+                "cols",
+                8,
+            )
+        )
+
+        self.video_widget.cells = {}
+
+        cell_count = (
+            self.video_widget.grid_rows
+            * self.video_widget.grid_cols
+        )
+
+        for cell_id in range(cell_count):
+            saved_cell = cells_config.get(
+                str(cell_id),
+                cells_config.get(
+                    cell_id,
+                    {},
+                ),
+            )
+
+            self.video_widget.cells[cell_id] = {
+                "enabled": bool(
+                    saved_cell.get(
+                        "enabled",
+                        True,
+                    )
+                ),
+                "threshold": int(
+                    saved_cell.get(
+                        "threshold",
+                        10,
+                    )
+                ),
+            }
 
         # Création du moteur de détection avec les paramètres chargés.
         self.motion_detector = MotionDetector(
             grid_rows=self.video_widget.grid_rows,
             grid_cols=self.video_widget.grid_cols,
             pixel_threshold=int(
-                self.loaded_general_settings[
-                    "pixel_threshold"
-                ]
+                detection_config.get(
+                    "pixel_threshold",
+                    25,
+                )
             ),
         )
 
         # Paramètres généraux chargés.
-        self.required_motion_frames = int(
-            self.loaded_general_settings[
-                "required_motion_frames"
-            ]
-        )
-
-        self.no_motion_delay = float(
-            self.loaded_general_settings[
-                "no_motion_delay"
-            ]
-        )
-
-        self.pre_event_seconds = float(
-            self.loaded_general_settings[
-                "pre_event_seconds"
-            ]
-        )
-
         self.camera_index = int(
-            self.loaded_general_settings[
-                "camera_index"
-            ]
+            camera_config.get(
+                "index",
+                1,
+            )
         )
 
         self.camera_width = int(
-            self.loaded_general_settings[
-                "camera_width"
-            ]
+            camera_config.get(
+                "width",
+                720,
+            )
         )
 
         self.camera_height = int(
-            self.loaded_general_settings[
-                "camera_height"
-            ]
+            camera_config.get(
+                "height",
+                540,
+            )
         )
 
         self.camera_fps = float(
-            self.loaded_general_settings[
-                "camera_fps"
-            ]
+            camera_config.get(
+                "fps",
+                30.0,
+            )
         )
+
+        self.required_motion_frames = int(
+            detection_config.get(
+                "required_motion_frames",
+                3,
+            )
+        )
+
+        self.no_motion_delay = float(
+            detection_config.get(
+                "no_motion_delay",
+                1.0,
+            )
+        )
+
+        self.pre_event_seconds = float(
+            recording_config.get(
+                "pre_event_seconds",
+                1.0,
+            )
+        )
+        
 
         # Buffer créé seulement après avoir défini pre_event_seconds.
         self.frame_buffer = FrameBuffer(
@@ -414,96 +477,6 @@ class MainWindow(QMainWindow):
 
         print("Enregistrement automatique arrêté.")
 
-    def load_grid_config(self):
-        if not CONFIG_FILE.exists():
-            print(
-                "Aucune configuration existante, "
-                "utilisation des valeurs par défaut."
-            )
-            return
-
-        try:
-            with CONFIG_FILE.open("r", encoding="utf-8") as config_file:
-                config = json.load(config_file)
-
-                camera_config = config.get(
-                    "camera",
-                    {}
-                )
-
-                detection_config = config.get(
-                    "detection",
-                    {}
-                )
-
-                recording_config = config.get(
-                    "recording",
-                    {}
-                )
-
-                self.loaded_general_settings = {
-                    "camera_index": camera_config.get(
-                        "index",
-                        1,
-                    ),
-                    "camera_width": camera_config.get(
-                        "width",
-                        720,
-                    ),
-                    "camera_height": camera_config.get(
-                        "height",
-                        540,
-                    ),
-                    "camera_fps": camera_config.get(
-                        "fps",
-                        30.0,
-                    ),
-
-                    "pixel_threshold": detection_config.get(
-                        "pixel_threshold",
-                        25,
-                    ),
-                    "required_motion_frames": (
-                        detection_config.get(
-                            "required_motion_frames",
-                            3,
-                        )
-                    ),
-                    "no_motion_delay": detection_config.get(
-                        "no_motion_delay",
-                        1.0,
-                    ),
-                    "pre_event_seconds": (
-                        recording_config.get(
-                            "pre_event_seconds",
-                            1.0,
-                        )
-                    ),
-                }
-
-            saved_cells = config.get("cells", {})
-
-            for cell_id_text, saved_cell in saved_cells.items():
-                cell_id = int(cell_id_text)
-
-                if cell_id not in self.video_widget.cells:
-                    continue
-
-                self.video_widget.cells[cell_id]["enabled"] = saved_cell.get(
-                    "enabled",
-                    True,
-                )
-
-                self.video_widget.cells[cell_id]["threshold"] = saved_cell.get(
-                    "threshold",
-                    10,
-                )
-
-            print(f"Configuration chargée depuis : {CONFIG_FILE}")
-
-        except (OSError, json.JSONDecodeError, ValueError) as error:
-            print(f"Impossible de charger la configuration : {error}")
-
     def closeEvent(self, event):
         self.timer.stop()
 
@@ -613,8 +586,6 @@ class MainWindow(QMainWindow):
             )
 
     def save_grid_config(self):
-        CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
-
         config = {
             "camera": {
                 "index": self.camera_index,
@@ -622,7 +593,6 @@ class MainWindow(QMainWindow):
                 "height": self.camera_height,
                 "fps": self.camera_fps,
             },
-            
             "detection": {
                 "pixel_threshold": (
                     self.motion_detector.pixel_threshold
@@ -640,29 +610,17 @@ class MainWindow(QMainWindow):
                 ),
             },
             "grid": {
-                "rows": self.video_widget.grid_rows,
-                "cols": self.video_widget.grid_cols,
+                "rows": (
+                    self.video_widget.grid_rows
+                ),
+                "cols": (
+                    self.video_widget.grid_cols
+                ),
             },
             "cells": self.video_widget.cells,
         }
 
-        temporary_file = CONFIG_FILE.with_suffix(".tmp")
-
-        try:
-            with temporary_file.open("w", encoding="utf-8") as config_file:
-                json.dump(
-                    config,
-                    config_file,
-                    indent=4,
-                    ensure_ascii=False,
-                )
-
-            temporary_file.replace(CONFIG_FILE)
-
-            print(f"Configuration sauvegardée dans : {CONFIG_FILE}")
-
-        except OSError as error:
-            print(f"Impossible de sauvegarder la configuration : {error}")
+        self.config_manager.save(config)
         
     def on_threshold_changed(self, value):
         if self.current_cell is None:

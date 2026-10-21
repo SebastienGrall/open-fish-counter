@@ -99,7 +99,7 @@
             "threshold": 10
         },
         "20": {
-            "enabled": true,
+            "enabled": false,
             "threshold": 10
         },
         "21": {
