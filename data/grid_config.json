@@ -1,7 +1,7 @@
 {
     "camera": {
-        "index": 0,
-        "width": 1080,
+        "index": 1,
+        "width": 720,
         "height": 540,
         "fps": 30.0
     },
