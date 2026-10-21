@@ -26,6 +26,7 @@ from recording.frame_buffer import FrameBuffer
 from recording.video_recorder import VideoRecorder
 from ui.settings_dialog import SettingsDialog
 from config.config_manager import ConfigManager
+from camera.camera_manager import CameraManager
 
 PROJECT_ROOT = (
     Path(__file__).resolve()
@@ -193,14 +194,26 @@ class MainWindow(QMainWindow):
         self.recording_enabled = True
 
         # Ouverture de la caméra.
-        self.open_camera()
-
-        camera_fps = self.cap.get(
-            cv2.CAP_PROP_FPS
+        self.camera_manager = CameraManager(
+            camera_index=self.camera_index,
+            requested_width=self.camera_width,
+            requested_height=self.camera_height,
+            requested_fps=self.camera_fps,
         )
 
-        if camera_fps <= 0:
-            camera_fps = self.camera_fps
+        camera_opened = (
+            self.camera_manager.open()
+        )
+
+        if not camera_opened:
+            self.video_widget.setText(
+                "Caméra indisponible\n"
+                f"{self.camera_manager.last_error}"
+            )
+
+        camera_fps = (
+            self.camera_manager.get_recording_fps()
+        )
 
         self.video_recorder = VideoRecorder(
             recordings_directory=RECORDINGS_DIRECTORY,
@@ -382,13 +395,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(side_panel, 1)
 
         self.setCentralWidget(main_widget)
-
-        #
-        # Pour l'instant :
-        # webcam OpenCV par défaut
-        #
-        #self.cap = cv2.VideoCapture(1)
-
+         
         self.timer = QTimer()
 
         self.timer.timeout.connect(self.update_frame)
@@ -396,7 +403,7 @@ class MainWindow(QMainWindow):
         self.timer.start(30)
 
     def update_frame(self):
-        ok, frame = self.cap.read()
+        ok, frame = self.camera_manager.read()
 
         if not ok:
             return
@@ -483,7 +490,7 @@ class MainWindow(QMainWindow):
         if self.video_recorder.is_recording:
             self.video_recorder.stop()
 
-        self.cap.release()
+        self.camera_manager.close()
 
         super().closeEvent(event)
 
@@ -827,6 +834,9 @@ class MainWindow(QMainWindow):
 
         self.save_grid_config()
 
+        if camera_changed:
+            self.restart_camera()
+
         print("Paramètres généraux appliqués :")
 
         print(
@@ -849,81 +859,61 @@ class MainWindow(QMainWindow):
             f"{self.pre_event_seconds:.1f} s"
         )
 
-        if camera_changed:
-            self.restart_camera()
-
-    def open_camera(self):
-        self.cap = cv2.VideoCapture(
-            self.camera_index
-        )
-
-        if not self.cap.isOpened():
-            raise RuntimeError(
-                "Impossible d'ouvrir la caméra "
-                f"à l'index {self.camera_index}."
-            )
-
-        self.cap.set(
-            cv2.CAP_PROP_FRAME_WIDTH,
-            self.camera_width,
-        )
-
-        self.cap.set(
-            cv2.CAP_PROP_FRAME_HEIGHT,
-            self.camera_height,
-        )
-
-        self.cap.set(
-            cv2.CAP_PROP_FPS,
-            self.camera_fps,
-        )
-
-        actual_width = int(
-            self.cap.get(
-                cv2.CAP_PROP_FRAME_WIDTH
-            )
-        )
-
-        actual_height = int(
-            self.cap.get(
-                cv2.CAP_PROP_FRAME_HEIGHT
-            )
-        )
-
-        announced_fps = self.cap.get(
-            cv2.CAP_PROP_FPS
-        )
-
-        print(
-            "Paramètres caméra demandés : "
-            f"{self.camera_width} × "
-            f"{self.camera_height} à "
-            f"{self.camera_fps:.1f} FPS"
-        )
-
-        print(
-            "Paramètres caméra obtenus : "
-            f"{actual_width} × "
-            f"{actual_height} à "
-            f"{announced_fps:.1f} FPS"
-        )
 
     def restart_camera(self):
         self.timer.stop()
 
         if self.video_recorder.is_recording:
-            self.video_recorder.stop()
+            saved_path = (
+                self.video_recorder.stop()
+            )
 
-        self.cap.release()
+            if saved_path is not None:
+                print(
+                    "Vidéo finalisée avant le "
+                    "redémarrage caméra : "
+                    f"{saved_path}"
+                )
+
+        self.event_active = False
+        self.motion_frame_count = 0
+        self.last_motion_time = None
+        self.event_started_this_frame = False
 
         self.motion_detector.reset()
         self.frame_buffer.clear()
 
-        self.open_camera()
+        camera_opened = (
+            self.camera_manager.restart(
+                camera_index=self.camera_index,
+                requested_width=self.camera_width,
+                requested_height=self.camera_height,
+                requested_fps=self.camera_fps,
+            )
+        )
+
+        if camera_opened:
+            actual_settings = (
+                self.camera_manager
+                .get_actual_settings()
+            )
+
+            print(
+                "Caméra redémarrée : "
+                f"{actual_settings['width']} x "
+                f"{actual_settings['height']} à "
+                f"{actual_settings['fps']:.1f} FPS"
+            )
+
+        else:
+            self.video_widget.setText(
+                "Caméra indisponible\n"
+                f"{self.camera_manager.last_error}"
+            )
+
+            print(
+                "Impossible de redémarrer la caméra : "
+                f"{self.camera_manager.last_error}"
+            )
 
         self.timer.start(30)
-
-        print(
-            "Caméra redémarrée avec "
-            "les nouveaux paramètres."
-        )
