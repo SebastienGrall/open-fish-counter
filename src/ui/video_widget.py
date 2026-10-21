@@ -11,11 +11,11 @@ class VideoWidget(QLabel):
     def __init__(self):
         super().__init__()
 
-
-
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setText("Aucun flux vidéo")
         self.setMinimumSize(640, 480)
+
+        self.display_mode = "full"
 
         self.grid_rows = 8
         self.grid_cols = 8
@@ -50,75 +50,83 @@ class VideoWidget(QLabel):
         cell_width = width // self.grid_cols
         cell_height = height // self.grid_rows
 
-        motion_overlay = frame.copy()
+        if self.display_mode in {
+            "full",
+            "detections",
+        }:
+            motion_overlay = frame.copy()
 
-        for row in range(self.grid_rows):
-            for col in range(self.grid_cols):
-                cell_id = row * self.grid_cols + col
+            for row in range(self.grid_rows):
+                for col in range(self.grid_cols):
+                    cell_id = row * self.grid_cols + col
 
-                cell = self.cells[cell_id]
+                    cell = self.cells[cell_id]
 
-                if not cell["enabled"]:
-                    continue
+                    if not cell["enabled"]:
+                        continue
 
-                motion_percentage = self.motion_levels.get(
-                    cell_id,
-                    0.0,
-                )
+                    motion_percentage = self.motion_levels.get(
+                        cell_id,
+                        0.0,
+                    )
 
-                threshold = cell["threshold"]
+                    threshold = cell["threshold"]
 
-                if motion_percentage < threshold:
-                    continue
+                    if motion_percentage < threshold:
+                        continue
 
-                x1 = col * width // self.grid_cols
-                x2 = (col + 1) * width // self.grid_cols
+                    x1 = col * width // self.grid_cols
+                    x2 = (col + 1) * width // self.grid_cols
 
-                y1 = row * height // self.grid_rows
-                y2 = (row + 1) * height // self.grid_rows
+                    y1 = row * height // self.grid_rows
+                    y2 = (row + 1) * height // self.grid_rows
 
-                cv2.rectangle(
-                    motion_overlay,
-                    (x1, y1),
-                    (x2, y2),
-                    (0, 165, 255),
-                    -1,
-                )
+                    cv2.rectangle(
+                        motion_overlay,
+                        (x1, y1),
+                        (x2, y2),
+                        (0, 165, 255),
+                        -1,
+                    )
 
-        cv2.addWeighted(
-            motion_overlay,
-            0.25,
-            frame,
-            0.75,
-            0,
-            frame,
-        )
-
-        # Lignes verticales
-        for col in range(self.grid_cols + 1):
-            x = col * cell_width
-
-            cv2.line(
+            cv2.addWeighted(
+                motion_overlay,
+                0.25,
                 frame,
-                (x, 0),
-                (x, height),
-                (0, 255, 0),
-                1,
+                0.75,
+                0,
+                frame,
             )
 
-        # Lignes horizontales
-        for row in range(self.grid_rows + 1):
-            y = row * cell_height
+        if self.display_mode == "full":
+            # Lignes verticales
+            for col in range(self.grid_cols + 1):
+                x = col * cell_width
 
-            cv2.line(
-                frame,
-                (0, y),
-                (width, y),
-                (0, 255, 0),
-                1,
-            )
+                cv2.line(
+                    frame,
+                    (x, 0),
+                    (x, height),
+                    (0, 255, 0),
+                    1,
+                )
 
-        if self.selected_cell is not None:
+            # Lignes horizontales
+            for row in range(self.grid_rows + 1):
+                y = row * cell_height
+
+                cv2.line(
+                    frame,
+                    (0, y),
+                    (width, y),
+                    (0, 255, 0),
+                    1,
+                )
+
+        if (
+            self.display_mode == "full"
+            and self.selected_cell is not None
+        ):
 
             row = self.selected_cell // self.grid_cols
             col = self.selected_cell % self.grid_cols
@@ -156,46 +164,47 @@ class VideoWidget(QLabel):
             )
 
         # Numérotation
-        cell_id = 0
+        if self.display_mode == "full":
+            cell_id = 0
 
-        for row in range(self.grid_rows):
-            for col in range(self.grid_cols):
+            for row in range(self.grid_rows):
+                for col in range(self.grid_cols):
 
-                x = col * cell_width
-                y = row * cell_height
+                    x = col * cell_width
+                    y = row * cell_height
 
-                if self.cells[cell_id]["enabled"]:
-                    text_color = (0, 255, 0)
-                else:
-                    text_color = (128, 128, 128)
+                    if self.cells[cell_id]["enabled"]:
+                        text_color = (0, 255, 0)
+                    else:
+                        text_color = (128, 128, 128)
 
-                cv2.putText(
-                    frame,
-                    str(cell_id),
-                    (x + 5, y + 20),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.5,
-                    text_color,
-                    1,
-                    cv2.LINE_AA,
-                )
+                    cv2.putText(
+                        frame,
+                        str(cell_id),
+                        (x + 5, y + 20),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.5,
+                        text_color,
+                        1,
+                        cv2.LINE_AA,
+                    )
 
-                motion_percentage = self.motion_levels.get(
-                    cell_id,
-                    0.0,
-                )
+                    motion_percentage = self.motion_levels.get(
+                        cell_id,
+                        0.0,
+                    )
 
-                cv2.putText(
-                    frame,
-                    f"{motion_percentage:.1f}%",
-                    (x + 5, y + 40),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.4,
-                    (255, 255, 255),
-                    1,
-                    cv2.LINE_AA)
+                    cv2.putText(
+                        frame,
+                        f"{motion_percentage:.1f}%",
+                        (x + 5, y + 40),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.4,
+                        (255, 255, 255),
+                        1,
+                        cv2.LINE_AA)
 
-                cell_id += 1
+                    cell_id += 1
 
         # Conversion Qt
         height, width, channels = frame.shape
@@ -235,6 +244,8 @@ class VideoWidget(QLabel):
         super().resizeEvent(event)
 
     def mousePressEvent(self, event):
+        if self.display_mode != "full":
+            return
 
         if self.frame_width == 0:
             return
@@ -254,3 +265,15 @@ class VideoWidget(QLabel):
         self.selected_cell = row * self.grid_cols + col
 
         self.cell_selected.emit(self.selected_cell)
+
+    def set_display_mode(self, display_mode):
+        allowed_modes = {
+            "full",
+            "detections",
+            "none",
+        }
+
+        if display_mode not in allowed_modes:
+            display_mode = "full"
+
+        self.display_mode = display_mode

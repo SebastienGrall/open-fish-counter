@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QVBoxLayout,
     QPushButton,
+    QComboBox,
 )
 
 from ui.video_widget import VideoWidget
@@ -142,6 +143,27 @@ class MainWindow(QMainWindow):
         self.start_recording_button.setEnabled(False)
         self.stop_recording_button.setEnabled(True)
 
+        self.display_mode_combo = QComboBox()
+
+        self.display_mode_combo.addItem(
+            "Grille complète",
+            "full",
+        )
+
+        self.display_mode_combo.addItem(
+            "Détections uniquement",
+            "detections",
+        )
+
+        self.display_mode_combo.addItem(
+            "Image seule",
+            "none",
+        )
+
+        self.display_mode_combo.currentIndexChanged.connect(
+            self.on_display_mode_changed
+        )
+
         main_widget = QWidget()
 
         layout = QHBoxLayout(main_widget)
@@ -149,6 +171,16 @@ class MainWindow(QMainWindow):
         side_panel = QWidget()
 
         side_layout = QVBoxLayout(side_panel)
+
+        side_layout.addWidget(
+            QLabel("Mode d'affichage")
+        )
+
+        side_layout.addWidget(
+            self.display_mode_combo
+        )
+
+        side_layout.addSpacing(20)
 
         side_layout.addWidget(self.cell_label)
         side_layout.addWidget(self.enabled_checkbox)
@@ -567,6 +599,15 @@ class MainWindow(QMainWindow):
 
         self.max_motion_label.setText(
             f"Mouvement maximal : {max_motion:.1f} %"
+        )
+
+    def on_display_mode_changed(self):
+        display_mode = (
+            self.display_mode_combo.currentData()
+        )
+
+        self.video_widget.set_display_mode(
+            display_mode
         )
 
 app = QApplication(sys.argv)
