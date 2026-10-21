@@ -1,5 +1,6 @@
 from datetime import datetime
 from pathlib import Path
+import json
 
 import cv2
 
@@ -20,12 +21,19 @@ class VideoRecorder:
         self.output_path = None
         self.frame_size = None
         self.frame_count = 0
+        self.video_start_time = None
+        self.event_detection_time = None
 
     @property
     def is_recording(self):
         return self.writer is not None
 
-    def start(self, pre_event_frames):
+    def start(
+        self,
+        pre_event_frames,
+        video_start_time=None,
+        fps=None,
+        ):
         if self.is_recording:
             return False
 
@@ -36,17 +44,24 @@ class VideoRecorder:
             )
             return False
 
+        if fps is not None and fps > 0:
+            self.fps = float(fps)
+
         first_frame = pre_event_frames[0]
 
         height, width = first_frame.shape[:2]
 
+        self.video_start_time = video_start_time
+        self.event_detection_time = datetime.now().astimezone()
+
         self.frame_size = (width, height)
 
-        now = datetime.now()
+        if video_start_time is None:
+            video_start_time = datetime.now().astimezone()
 
         day_directory = (
             self.recordings_directory
-            / now.strftime("%Y-%m-%d")
+            / video_start_time.strftime("%Y-%m-%d")
         )
 
         day_directory.mkdir(
@@ -55,8 +70,9 @@ class VideoRecorder:
         )
 
         filename = (
-            f"event_{now.strftime('%H-%M-%S-%f')[:-3]}"
-            f".mp4"
+            "event_"
+            f"{video_start_time.strftime('%H-%M-%S-%f')[:-3]}"
+            ".mp4"
         )
 
         self.output_path = (
@@ -89,6 +105,11 @@ class VideoRecorder:
 
         self.frame_count = 0
 
+        print(
+            f"FPS utilisés pour le fichier : "
+            f"{self.fps:.2f}"
+        )
+
         for frame in pre_event_frames:
             self.write_frame(frame)
 
@@ -120,13 +141,10 @@ class VideoRecorder:
 
         output_path = self.output_path
         frame_count = self.frame_count
+        video_start_time = self.video_start_time
+        video_end_time = datetime.now().astimezone()
 
         self.writer.release()
-
-        self.writer = None
-        self.output_path = None
-        self.frame_size = None
-        self.frame_count = 0
 
         print(
             f"Enregistrement terminé : "
@@ -138,4 +156,95 @@ class VideoRecorder:
             f"{frame_count}"
         )
 
+        try:
+            self._write_metadata(
+                output_path=output_path,
+                video_start_time=video_start_time,
+                video_end_time=video_end_time,
+                frame_count=frame_count,
+            )
+
+        except OSError as error:
+            print(
+                f"Impossible d'enregistrer "
+                f"les métadonnées : {error}"
+            )
+
+        self.writer = None
+        self.output_path = None
+        self.frame_size = None
+        self.frame_count = 0
+        self.video_start_time = None
+        self.event_detection_time = None
+
         return output_path
+
+    def _write_metadata(
+        self,
+        output_path,
+        video_start_time,
+        video_end_time,
+        frame_count,
+    ):
+        if video_start_time is not None:
+            start_time_text = video_start_time.isoformat(
+                timespec="milliseconds"
+            )
+        else:
+            start_time_text = None
+
+        if self.event_detection_time is not None:
+            detection_time_text = (
+                self.event_detection_time.isoformat(
+                    timespec="milliseconds"
+                )
+            )
+        else:
+            detection_time_text = None
+
+        end_time_text = video_end_time.isoformat(
+            timespec="milliseconds"
+        )
+
+        if self.frame_size is not None:
+            frame_width, frame_height = self.frame_size
+        else:
+            frame_width = None
+            frame_height = None
+
+        metadata = {
+            "video_file": output_path.name,
+            "video_start_time": start_time_text,
+            "event_detection_time": detection_time_text,
+            "video_end_time": end_time_text,
+            "frame_count": frame_count,
+            "recording_fps": round(self.fps, 3),
+            "frame_width": frame_width,
+            "frame_height": frame_height,
+        }
+
+        metadata_path = output_path.with_suffix(
+            ".json"
+        )
+
+        temporary_path = metadata_path.with_suffix(
+            ".json.tmp"
+        )
+
+        with temporary_path.open(
+            "w",
+            encoding="utf-8",
+        ) as metadata_file:
+            json.dump(
+                metadata,
+                metadata_file,
+                indent=4,
+                ensure_ascii=False,
+            )
+
+        temporary_path.replace(metadata_path)
+
+        print(
+            f"Métadonnées sauvegardées : "
+            f"{metadata_path}"
+        )

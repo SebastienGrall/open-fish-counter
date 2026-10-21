@@ -263,10 +263,28 @@ class MainWindow(QMainWindow):
     def on_event_started(self):
         self.event_started_this_frame = True
 
-        pre_event_frames = self.frame_buffer.get_frames()
+        pre_event_frames = (
+            self.frame_buffer.get_frames()
+        )
 
-        buffered_frame_count = len(pre_event_frames)
-        buffered_duration = self.frame_buffer.get_duration()
+        video_start_time = (
+            self.frame_buffer.get_first_capture_time()
+        )
+
+        buffered_frame_count = len(
+            pre_event_frames
+        )
+
+        buffered_duration = (
+            self.frame_buffer.get_duration()
+        )
+
+        estimated_fps = (
+            self.frame_buffer.get_estimated_fps()
+        )
+
+        if estimated_fps <= 0:
+            estimated_fps = 25.0
 
         print("=== DÉBUT DE L'ÉVÉNEMENT ===")
 
@@ -276,10 +294,28 @@ class MainWindow(QMainWindow):
             f"{buffered_duration:.2f} seconde(s)"
         )
 
-        self.video_recorder.start(
-            pre_event_frames
+        if video_start_time is not None:
+            formatted_start_time = (
+                video_start_time.isoformat(
+                    timespec="milliseconds"
+                )
+            )
+
+            print(
+                f"Première image du clip : "
+                f"{formatted_start_time}"
+            )
+
+        print(
+            f"FPS estimés sur le pré-buffer : "
+            f"{estimated_fps:.2f}"
         )
 
+        self.video_recorder.start(
+            pre_event_frames=pre_event_frames,
+            video_start_time=video_start_time,
+            fps=estimated_fps,
+        )
 
     def on_event_ended(self):
         print("=== FIN DE L'ÉVÉNEMENT ===")

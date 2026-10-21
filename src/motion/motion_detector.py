@@ -7,7 +7,7 @@ class MotionDetector:
         self,
         grid_rows=8,
         grid_cols=8,
-        pixel_threshold=25,
+        pixel_threshold=25,  ### différence minimale de luminosité pour considérer qu’un pixel a changé
     ):
         self.grid_rows = grid_rows
         self.grid_cols = grid_cols
