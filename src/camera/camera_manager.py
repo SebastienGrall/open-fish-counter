@@ -2,6 +2,10 @@ import platform
 import time
 import cv2
 
+from logging_utils.log_manager import (
+    get_logger,
+)
+
 
 class CameraManager:
     def __init__(
@@ -11,6 +15,11 @@ class CameraManager:
         requested_height=480,
         requested_fps=30.0,
     ):
+        
+        self.logger = get_logger(
+            "camera"
+        )
+        
         self.camera_index = int(camera_index)
 
         self.requested_width = int(
@@ -67,9 +76,9 @@ class CameraManager:
             )
 
         if not self.capture.isOpened():
-            self.last_error = (
-                "Impossible d'ouvrir la caméra "
-                f"à l'index {self.camera_index}."
+            self.logger.warning = (
+                "Impossible d'ouvrir la caméra : %s",
+                self.last_error,
             )
 
             self.close()
@@ -79,19 +88,22 @@ class CameraManager:
         self._apply_requested_settings()
         self._read_actual_settings()
 
-        print(
-            "Paramètres caméra demandés : "
-            f"{self.requested_width} x "
-            f"{self.requested_height} à "
-            f"{self.requested_fps:.1f} FPS"
+        self.logger.info(
+            "Ouverture caméra | index=%d | "
+            "resolution=%dx%d | fps=%.1f",
+            self.camera_index,
+            self.requested_width,
+            self.requested_height,
+            self.requested_fps,
         )
 
-        print(
-            "Paramètres caméra obtenus : "
-            f"{self.actual_width} x "
-            f"{self.actual_height} à "
-            f"{self.actual_fps:.1f} FPS"
-        )
+        self.logger.info(
+                "Caméra ouverte | resolution=%dx%d | "
+                "fps_annonce=%.1f",
+                self.actual_width,
+                self.actual_height,
+                self.actual_fps,
+            )
 
         return True
 
@@ -291,20 +303,22 @@ class CameraManager:
 
         self.last_reconnect_attempt = current_time
 
-        print(
-            "Tentative de reconnexion à la caméra "
-            f"d'index {self.camera_index}..."
+        self.logger.info(
+            "Tentative de reconnexion caméra, index=%d",
+            self.camera_index,
         )
 
         opened = self.open()
 
         if opened:
-            print("Caméra reconnectée avec succès.")
+            self.logger.info(
+                "Caméra reconnectée avec succès."
+            )
 
         else:
-            print(
-                "Échec de la reconnexion : "
-                f"{self.last_error}"
+            self.logger.warning(
+                "Échec de la reconnexion : %s",
+                self.last_error,
             )
 
         return opened

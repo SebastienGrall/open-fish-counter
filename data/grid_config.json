@@ -14,7 +14,9 @@
         "no_motion_delay": 1.0
     },
     "recording": {
-        "pre_event_seconds": 1.0
+        "pre_event_seconds": 1.0,
+        "output_directory": "C:\\Users\\seino\\Videos\\OpenFishCounter",
+        "snapshots_enabled": false
     },
     "grid": {
         "rows": 8,

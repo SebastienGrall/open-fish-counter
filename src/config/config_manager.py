@@ -2,6 +2,27 @@ import json
 from copy import deepcopy
 from pathlib import Path
 
+from logging_utils.log_manager import (
+    get_logger,
+)
+
+def get_default_recordings_directory():
+    home_directory = Path.home()
+
+    videos_directory = (
+        home_directory / "Videos"
+    )
+
+    if videos_directory.exists():
+        return str(
+            videos_directory
+            / "OpenFishCounter"
+        )
+
+    return str(
+        home_directory
+        / "OpenFishCounter"
+    )
 
 DEFAULT_CONFIG = {
     "station": {
@@ -20,6 +41,10 @@ DEFAULT_CONFIG = {
     },
     "recording": {
         "pre_event_seconds": 1.0,
+        "output_directory": (
+        get_default_recordings_directory()
+        ),
+        "snapshots_enabled": False,
     },
     "grid": {
         "rows": 8,
@@ -33,6 +58,9 @@ class ConfigManager:
     def __init__(self, config_path):
         self.config_path = Path(config_path)
         self.config = deepcopy(DEFAULT_CONFIG)
+        self.logger = get_logger(
+            "config"
+        )
 
     def load(self):
         """
@@ -63,9 +91,9 @@ class ConfigManager:
                 loaded_config,
             )
 
-            print(
-                "Configuration chargée depuis : "
-                f"{self.config_path}"
+            self.logger.info(
+                "Configuration chargée depuis : %s",
+                self.config_path,
             )
 
         except json.JSONDecodeError as error:
@@ -116,9 +144,9 @@ class ConfigManager:
                 self.config_path
             )
 
-            print(
-                "Configuration sauvegardée dans : "
-                f"{self.config_path}"
+            self.logger.info(
+                "Configuration sauvegardée dans : %s",
+                self.config_path,
             )
 
             return True

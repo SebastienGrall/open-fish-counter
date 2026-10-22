@@ -2,12 +2,23 @@
 __pycache__/
 *.pyc
 
-# Enregistrements vidéo
 data/recordings/*
+data/snapshots/*
+dataset/*
+
 !data/recordings/.gitkeep
+!data/snapshots/.gitkeep
+!dataset/.gitkeep
 
 # Formats vidéo, sécurité supplémentaire
 *.mp4
 *.avi
 *.mkv
 *.mov
+
+# Données générées
+*.jpg
+*.jpeg
+*.png
+ 
+

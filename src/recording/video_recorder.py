@@ -5,6 +5,10 @@ import cv2
 import re
 import unicodedata
 
+from logging_utils.log_manager import (
+    get_logger,
+)
+
 def make_safe_filename(value):
         value = str(value).strip()
 
@@ -73,6 +77,9 @@ class VideoRecorder:
         self.frame_count = 0
         self.video_start_time = None
         self.event_detection_time = None
+        self.logger = get_logger(
+            "recorder"
+        )
 
     @property
     def is_recording(self):
@@ -107,19 +114,6 @@ class VideoRecorder:
 
         self.frame_size = (width, height)
 
-        if video_start_time is None:
-            video_start_time = datetime.now().astimezone()
-
-        day_directory = (
-            self.recordings_directory
-            / video_start_time.strftime("%Y-%m-%d")
-        )
-
-        day_directory.mkdir(
-            parents=True,
-            exist_ok=True,
-        )
-
         self.station_name = (
             str(station_name).strip()
             or "Station"
@@ -129,6 +123,37 @@ class VideoRecorder:
             self.station_name
         )
 
+        if video_start_time is None:
+            video_start_time = datetime.now().astimezone()
+
+        station_directory = (
+            self.recordings_directory
+            / safe_station_name
+        )
+
+        day_directory = (
+            station_directory
+            / video_start_time.strftime("%Y-%m-%d")
+        )
+
+        videos_directory = (
+            day_directory / "videos"
+        )
+
+        snapshots_directory = (
+            day_directory / "snapshots"
+        )
+
+        videos_directory.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
+        snapshots_directory.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
         filename = (
             f"{safe_station_name}_"
             f"{video_start_time.strftime('%H-%M-%S-%f')[:-3]}"
@@ -136,7 +161,7 @@ class VideoRecorder:
         )
 
         self.output_path = (
-            day_directory / filename
+            videos_directory / filename
         )
 
         fourcc = cv2.VideoWriter_fourcc(
@@ -178,6 +203,15 @@ class VideoRecorder:
             f"{self.output_path}"
         )
 
+        self.logger.info(
+            "Démarrage enregistrement | fichier=%s | "
+            "fps=%.3f | resolution=%dx%d",
+            self.output_path,
+            self.fps,
+            self.frame_size[0],
+            self.frame_size[1],
+        )
+
         return True
 
     def write_frame(self, frame):
@@ -214,6 +248,13 @@ class VideoRecorder:
         print(
             f"Nombre d'images enregistrées : "
             f"{frame_count}"
+        )
+
+        self.logger.info(
+            "Enregistrement terminé | fichier=%s | "
+            "images=%d",
+            output_path,
+            frame_count,
         )
 
         try:
@@ -309,4 +350,9 @@ class VideoRecorder:
         print(
             f"Métadonnées sauvegardées : "
             f"{metadata_path}"
+        )
+
+        self.logger.info(
+            "Métadonnées sauvegardées : %s",
+            metadata_path,
         )

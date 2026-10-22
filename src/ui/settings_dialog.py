@@ -2,12 +2,18 @@ from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QDoubleSpinBox,
+    QFileDialog,
     QFormLayout,
     QGroupBox,
+    QCheckBox,
+    QHBoxLayout,
+    QLineEdit,
+    QPushButton,
     QSpinBox,
     QVBoxLayout,
-    QLineEdit,
+    QWidget,
 )
+from pathlib import Path
 
 
 class SettingsDialog(QDialog):
@@ -18,6 +24,8 @@ class SettingsDialog(QDialog):
         required_motion_frames,
         no_motion_delay,
         pre_event_seconds,
+        recordings_directory,
+        snapshots_enabled,
         camera_index,
         camera_width,
         camera_height,
@@ -235,6 +243,77 @@ class SettingsDialog(QDialog):
             self.pre_event_spinbox,
         )
 
+        self.recordings_directory_edit = (
+            QLineEdit()
+        )
+
+        self.recordings_directory_edit.setText(
+            str(recordings_directory)
+        )
+
+        self.recordings_directory_edit.setReadOnly(
+            True
+        )
+
+        self.recordings_directory_edit.setToolTip(
+            "Dossier racine dans lequel seront "
+            "créés les dossiers de station et "
+            "les enregistrements."
+        )
+
+        self.browse_directory_button = QPushButton(
+            "Parcourir..."
+        )
+
+        self.browse_directory_button.clicked.connect(
+            self.select_recordings_directory
+        )
+
+        self.snapshots_enabled_checkbox = QCheckBox(
+            "Créer une image par événement"
+        )
+
+        self.snapshots_enabled_checkbox.setChecked(
+            bool(snapshots_enabled)
+        )
+
+        self.snapshots_enabled_checkbox.setToolTip(
+            "Enregistre l'image brute présentant le niveau "
+            "de mouvement maximal pendant l'événement."
+        )
+
+        recording_layout.addRow(
+            "Banque d'images :",
+            self.snapshots_enabled_checkbox,
+        )
+
+        directory_widget = QWidget()
+
+        directory_layout = QHBoxLayout(
+            directory_widget
+        )
+
+        directory_layout.setContentsMargins(
+            0,
+            0,
+            0,
+            0,
+        )
+
+        directory_layout.addWidget(
+            self.recordings_directory_edit,
+            1,
+        )
+
+        directory_layout.addWidget(
+            self.browse_directory_button,
+        )
+
+        recording_layout.addRow(
+            "Dossier de destination :",
+            directory_widget,
+        )
+
         main_layout.addWidget(recording_group)
 
         # Boutons
@@ -270,6 +349,12 @@ class SettingsDialog(QDialog):
             "pre_event_seconds": (
                 self.pre_event_spinbox.value()
             ),
+            "recordings_directory": (
+                self.recordings_directory_edit.text().strip()
+            ),
+            "snapshots_enabled": (
+                self.snapshots_enabled_checkbox.isChecked()
+            ),
             "camera_index": (
                 self.camera_index_spinbox.value()
             ),
@@ -283,3 +368,31 @@ class SettingsDialog(QDialog):
                 self.camera_fps_spinbox.value()
             ),
         }
+
+    def select_recordings_directory(self):
+        current_directory = (
+            self.recordings_directory_edit.text()
+            .strip()
+        )
+
+        if not current_directory:
+            current_directory = str(
+                Path.home()
+            )
+
+        selected_directory = (
+            QFileDialog.getExistingDirectory(
+                self,
+                "Choisir le dossier des enregistrements",
+                current_directory,
+                QFileDialog.Option.ShowDirsOnly,
+            )
+        )
+
+        if not selected_directory:
+            return
+
+        self.recordings_directory_edit.setText(
+            selected_directory
+        )
+    

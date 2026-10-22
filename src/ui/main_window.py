@@ -27,6 +27,11 @@ from recording.video_recorder import VideoRecorder
 from ui.settings_dialog import SettingsDialog
 from config.config_manager import ConfigManager
 from camera.camera_manager import CameraManager
+from version import APP_NAME, APP_VERSION
+from logging_utils.log_manager import (
+    get_logger,
+    setup_logging,
+)
 
 PROJECT_ROOT = (
     Path(__file__).resolve()
@@ -51,7 +56,10 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
-        self.setWindowTitle("Open Fish Counter")
+        self.setWindowTitle(
+            f"{APP_NAME} - {APP_VERSION}"
+        )
+        
         self.resize(1200, 800)
 
         self.video_widget = VideoWidget()
@@ -185,7 +193,44 @@ class MainWindow(QMainWindow):
                 1.0,
             )
         )
+
+        self.recordings_directory = Path(
+            recording_config.get(
+                "output_directory",
+                str(
+                    PROJECT_ROOT
+                    / "data"
+                    / "recordings"
+                ),
+            )
+        ).expanduser()
+
+        self.logs_directory = (
+            self.recordings_directory
+            / "logs"
+        )
+
+        self.logger = setup_logging(
+            self.logs_directory
+        )
+
+        self.logger.info(
+            "Démarrage de %s version %s",
+            APP_NAME,
+            APP_VERSION,
+        )
+
+        self.logger.info(
+            "Station configurée : %s",
+            self.station_name,
+        )
         
+        self.snapshots_enabled = bool(
+            recording_config.get(
+                "snapshots_enabled",
+                False,
+            )
+        )
 
         # Buffer créé seulement après avoir défini pre_event_seconds.
         self.frame_buffer = FrameBuffer(
@@ -227,13 +272,15 @@ class MainWindow(QMainWindow):
         )
 
         self.video_recorder = VideoRecorder(
-            recordings_directory=RECORDINGS_DIRECTORY,
+            recordings_directory=(
+                self.recordings_directory
+            ),
             fps=camera_fps,
         )
 
-        print(
-            f"Fréquence d'enregistrement : "
-            f"{camera_fps:.2f} images/s"
+        self.logger.info(
+            "Fréquence d'enregistrement : %.2f images/s",
+            camera_fps,
         )
 
         # Signal de sélection des cellules.
@@ -344,6 +391,9 @@ class MainWindow(QMainWindow):
             self.open_settings_dialog
         )
 
+        self.best_snapshot_frame = None
+        self.best_snapshot_score = 0.0
+
         main_widget = QWidget()
 
         layout = QHBoxLayout(main_widget)
@@ -406,6 +456,8 @@ class MainWindow(QMainWindow):
         layout.addWidget(side_panel, 1)
 
         self.setCentralWidget(main_widget)
+
+        self.apply_recordings_directory()
          
         self.timer = QTimer()
 
@@ -480,9 +532,33 @@ class MainWindow(QMainWindow):
             motion_levels
         )
 
-        self.update_event_indicator(
+        event_data = self.update_event_indicator(
             motion_levels
         )
+
+        if (
+            self.snapshots_enabled
+            and self.event_active
+        ):
+            current_motion_score = float(
+                event_data.get(
+                    "max_motion",
+                    0.0,
+                )
+            )
+
+            if (
+                self.best_snapshot_frame is None
+                or current_motion_score
+                > self.best_snapshot_score
+            ):
+                self.best_snapshot_frame = (
+                    frame.copy()
+                )
+
+                self.best_snapshot_score = (
+                    current_motion_score
+                )
 
         if (
             self.event_active
@@ -528,6 +604,9 @@ class MainWindow(QMainWindow):
         # Si un fichier est actuellement ouvert,
         # on le termine proprement.
         if self.video_recorder.is_recording:
+            snapshot_path = (
+                self.save_event_snapshot()
+            )
             saved_path = self.video_recorder.stop()
 
             if saved_path is not None:
@@ -539,9 +618,18 @@ class MainWindow(QMainWindow):
         print("Enregistrement automatique arrêté.")
 
     def closeEvent(self, event):
+        self.logger.info(
+            "Fermeture de l'application."
+        )
+
         self.timer.stop()
 
         if self.video_recorder.is_recording:
+            self.logger.info(
+                "Finalisation de l'enregistrement "
+                "avant fermeture."
+            )
+
             self.video_recorder.stop()
 
         self.camera_manager.close()
@@ -572,6 +660,8 @@ class MainWindow(QMainWindow):
 
     def on_event_started(self):
         self.event_started_this_frame = True
+
+        self.reset_snapshot_state()
 
         pre_event_frames = self.frame_buffer.get_frames()
 
@@ -634,18 +724,29 @@ class MainWindow(QMainWindow):
         )
 
     def on_event_ended(self):
-        print("=== FIN DE L'ÉVÉNEMENT ===")
+        self.logger.info("Fin d'événement")
 
         if not self.video_recorder.is_recording:
+            self.reset_snapshot_state()
             return
+
+        snapshot_path = self.save_event_snapshot()
 
         saved_path = self.video_recorder.stop()
 
         if saved_path is not None:
-            print(
-                f"Vidéo sauvegardée : "
-                f"{saved_path}"
+            self.logger.info(
+                "Vidéo sauvegardée : %s",
+                saved_path,
             )
+
+        if snapshot_path is not None:
+            self.logger.info(
+                "Snapshot sauvegardé : %s",
+                snapshot_path,
+            )
+
+        self.reset_snapshot_state()
 
     def save_grid_config(self):
         config = {
@@ -672,6 +773,12 @@ class MainWindow(QMainWindow):
             "recording": {
                 "pre_event_seconds": (
                     self.pre_event_seconds
+                ),
+                "output_directory": str(
+                    self.recordings_directory
+                ),
+                "snapshots_enabled": (
+                    self.snapshots_enabled
                 ),
             },
             "grid": {
@@ -800,6 +907,11 @@ class MainWindow(QMainWindow):
             f"Mouvement maximal : {max_motion:.1f} %"
         )
 
+        return {
+            "triggered_count": triggered_count,
+            "max_motion": max_motion,
+        }
+
     def on_display_mode_changed(self):
         display_mode = (
             self.display_mode_combo.currentData()
@@ -823,6 +935,12 @@ class MainWindow(QMainWindow):
             ),
             pre_event_seconds=(
                 self.pre_event_seconds
+            ),
+            recordings_directory=str(
+                self.recordings_directory
+            ),
+            snapshots_enabled=(
+                self.snapshots_enabled
             ),
             camera_index=self.camera_index,
             camera_width=self.camera_width,
@@ -863,6 +981,13 @@ class MainWindow(QMainWindow):
             self.pre_event_seconds
         )
 
+        self.snapshots_enabled = bool(
+            settings.get(
+                "snapshots_enabled",
+                False,
+            )
+        )
+
         new_station_name = str(
             settings["station_name"]
         ).strip()
@@ -872,10 +997,7 @@ class MainWindow(QMainWindow):
 
         self.station_name = new_station_name
 
-        print(
-            f"- Station : {self.station_name}"
-        )
-
+        
         new_camera_index = int(
             settings["camera_index"]
         )
@@ -899,17 +1021,45 @@ class MainWindow(QMainWindow):
             or new_camera_fps != self.camera_fps
         )
 
+
+
         self.camera_index = new_camera_index
         self.camera_width = new_camera_width
         self.camera_height = new_camera_height
         self.camera_fps = new_camera_fps
 
+ 
+        new_recordings_directory = Path(
+            settings["recordings_directory"]
+        ).expanduser()
+
+        if not str(new_recordings_directory).strip():
+            new_recordings_directory = (
+                self.recordings_directory
+            )
+
+        recordings_directory_changed = (
+            new_recordings_directory
+            != self.recordings_directory
+        )
+
+        self.recordings_directory = (
+            new_recordings_directory
+        )
+
         self.save_grid_config()
+
+        if recordings_directory_changed:
+            self.apply_recordings_directory()
 
         if camera_changed:
             self.restart_camera()
 
         print("Paramètres généraux appliqués :")
+
+        print(
+            f"- Station : {self.station_name}"
+        )
 
         print(
             f"- Seuil pixel : "
@@ -931,6 +1081,11 @@ class MainWindow(QMainWindow):
             f"{self.pre_event_seconds:.1f} s"
         )
 
+        print(
+            "- Banque d'images : "
+            f"{'activée' if self.snapshots_enabled else 'désactivée'}"
+        )
+        
     def restart_camera(self):
         self.timer.stop()
 
@@ -982,9 +1137,177 @@ class MainWindow(QMainWindow):
                 f"{self.camera_manager.last_error}"
             )
 
-            print(
-                "Impossible de redémarrer la caméra : "
-                f"{self.camera_manager.last_error}"
+            self.logger.warning(
+                "Impossible de redémarrer la caméra : %s",
+                self.camera_manager.last_error,
             )
 
         self.timer.start(30)
+
+    def apply_recordings_directory(self):
+        try:
+            self.recordings_directory.mkdir(
+                parents=True,
+                exist_ok=True,
+            )
+
+        except OSError as error:
+            self.logger.error(
+                "Impossible de créer le dossier "
+                "d'enregistrement : %s",
+                error,
+            )
+
+            self.recording_enabled = False
+
+            self.recording_status_label.setText(
+                "Enregistrement automatique : "
+                "DOSSIER INDISPONIBLE"
+            )
+
+            self.recording_status_label.setStyleSheet(
+                "font-weight: bold; color: red;"
+            )
+
+            self.start_recording_button.setEnabled(
+                True
+            )
+
+            self.stop_recording_button.setEnabled(
+                False
+            )
+
+            return False
+
+        # L'enregistreur ne change de destination
+        # que lorsqu'aucune vidéo n'est en cours.
+        if self.video_recorder.is_recording:
+            saved_path = self.video_recorder.stop()
+
+            if saved_path is not None:
+                print(
+                    "Vidéo finalisée avant le changement "
+                    "de dossier : "
+                    f"{saved_path}"
+                )
+
+            self.event_active = False
+            self.motion_frame_count = 0
+            self.last_motion_time = None
+
+        self.video_recorder.recordings_directory = (
+            self.recordings_directory
+        )
+
+        print(
+            "Nouveau dossier d'enregistrement : "
+            f"{self.recordings_directory}"
+        )
+
+        self.logs_directory = (
+            self.recordings_directory
+            / "logs"
+        )
+
+        self.logger = setup_logging(
+            self.logs_directory
+        )
+
+        self.logger.info(
+            "Dossier d'enregistrement modifié : %s",
+            self.recordings_directory,
+        )
+
+        return True    
+
+    def reset_snapshot_state(self):
+        self.best_snapshot_frame = None
+        self.best_snapshot_score = 0.0
+
+    def save_event_snapshot(self):
+        if not self.snapshots_enabled:
+            return None
+
+        if self.best_snapshot_frame is None:
+            print(
+                "Aucune image disponible pour "
+                "la banque d'images."
+            )
+
+            return None
+
+        video_path = self.video_recorder.output_path
+
+        if video_path is None:
+            print(
+                "Impossible de créer le snapshot : "
+                "aucun fichier vidéo actif."
+            )
+
+            return None
+
+        # La vidéo est dans :
+        # station/date/videos/video.mp4
+        #
+        # Le snapshot sera dans :
+        # station/date/snapshots/image.jpg
+        day_directory = (
+            video_path.parent.parent
+        )
+
+        snapshots_directory = (
+            day_directory / "snapshots"
+        )
+
+        try:
+            snapshots_directory.mkdir(
+                parents=True,
+                exist_ok=True,
+            )
+
+        except OSError as error:
+            print(
+                "Impossible de créer le dossier "
+                f"des snapshots : {error}"
+            )
+
+            return None
+
+        snapshot_filename = (
+            f"{video_path.stem}"
+            "_max_motion.jpg"
+        )
+
+        snapshot_path = (
+            snapshots_directory
+            / snapshot_filename
+        )
+
+        saved = cv2.imwrite(
+            str(snapshot_path),
+            self.best_snapshot_frame,
+            [
+                cv2.IMWRITE_JPEG_QUALITY,
+                95,
+            ],
+        )
+
+        if not saved:
+            print(
+                "Impossible d'enregistrer l'image : "
+                f"{snapshot_path}"
+            )
+
+            return None
+
+        print(
+            "Image ajoutée à la banque : "
+            f"{snapshot_path}"
+        )
+
+        print(
+            "Score de mouvement de l'image : "
+            f"{self.best_snapshot_score:.1f} %"
+        )
+
+        return snapshot_path
