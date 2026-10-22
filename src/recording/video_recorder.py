@@ -1,9 +1,59 @@
 from datetime import datetime
 from pathlib import Path
 import json
-
 import cv2
+import re
+import unicodedata
 
+def make_safe_filename(value):
+        value = str(value).strip()
+
+        if not value:
+            return "Station"
+
+        # Transforme les caractères accentués :
+        # "à" devient "a", "é" devient "e", etc.
+        normalized_value = unicodedata.normalize(
+            "NFKD",
+            value,
+        )
+
+        ascii_value = normalized_value.encode(
+            "ascii",
+            "ignore",
+        ).decode("ascii")
+
+        # Les espaces et séparateurs deviennent
+        # des underscores.
+        safe_value = re.sub(
+            r"[\s\-]+",
+            "_",
+            ascii_value,
+        )
+
+        # Retire les caractères incompatibles
+        # ou risqués dans un nom de fichier.
+        safe_value = re.sub(
+            r"[^A-Za-z0-9_]",
+            "",
+            safe_value,
+        )
+
+        # Évite les underscores successifs.
+        safe_value = re.sub(
+            r"_+",
+            "_",
+            safe_value,
+        )
+
+        safe_value = safe_value.strip(
+            "._"
+        )
+
+        if not safe_value:
+            return "Station"
+
+        return safe_value
 
 class VideoRecorder:
     def __init__(
@@ -16,7 +66,7 @@ class VideoRecorder:
         )
 
         self.fps = float(fps)
-
+        self.station_name = "Station"
         self.writer = None
         self.output_path = None
         self.frame_size = None
@@ -33,6 +83,7 @@ class VideoRecorder:
         pre_event_frames,
         video_start_time=None,
         fps=None,
+        station_name="Station",
         ):
         if self.is_recording:
             return False
@@ -69,8 +120,17 @@ class VideoRecorder:
             exist_ok=True,
         )
 
+        self.station_name = (
+            str(station_name).strip()
+            or "Station"
+        )
+
+        safe_station_name = make_safe_filename(
+            self.station_name
+        )
+
         filename = (
-            "event_"
+            f"{safe_station_name}_"
             f"{video_start_time.strftime('%H-%M-%S-%f')[:-3]}"
             ".mp4"
         )
@@ -176,6 +236,7 @@ class VideoRecorder:
         self.frame_count = 0
         self.video_start_time = None
         self.event_detection_time = None
+        self.station_name = "Station"
 
         return output_path
 
@@ -213,6 +274,7 @@ class VideoRecorder:
             frame_height = None
 
         metadata = {
+            "station_name": self.station_name,
             "video_file": output_path.name,
             "video_start_time": start_time_text,
             "event_detection_time": detection_time_text,

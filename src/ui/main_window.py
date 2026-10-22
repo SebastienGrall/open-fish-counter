@@ -67,6 +67,17 @@ class MainWindow(QMainWindow):
         recording_config = app_config["recording"]
         grid_config = app_config["grid"]
         cells_config = app_config["cells"]
+        station_config = app_config["station"]
+
+        self.station_name = str(
+            station_config.get(
+                "name",
+                "Station",
+            )
+        ).strip()
+
+        if not self.station_name:
+            self.station_name = "Station"
 
         self.video_widget.grid_rows = int(
             grid_config.get(
@@ -619,6 +630,7 @@ class MainWindow(QMainWindow):
             pre_event_frames=pre_event_frames,
             video_start_time=video_start_time,
             fps=estimated_fps,
+            station_name=self.station_name,
         )
 
     def on_event_ended(self):
@@ -637,6 +649,9 @@ class MainWindow(QMainWindow):
 
     def save_grid_config(self):
         config = {
+            "station": {
+                "name": self.station_name,
+            },
             "camera": {
                 "index": self.camera_index,
                 "width": self.camera_width,
@@ -796,6 +811,7 @@ class MainWindow(QMainWindow):
 
     def open_settings_dialog(self):
         dialog = SettingsDialog(
+            station_name=self.station_name,
             pixel_threshold=(
                 self.motion_detector.pixel_threshold
             ),
@@ -845,6 +861,19 @@ class MainWindow(QMainWindow):
 
         self.frame_buffer.set_duration(
             self.pre_event_seconds
+        )
+
+        new_station_name = str(
+            settings["station_name"]
+        ).strip()
+
+        if not new_station_name:
+            new_station_name = "Station"
+
+        self.station_name = new_station_name
+
+        print(
+            f"- Station : {self.station_name}"
         )
 
         new_camera_index = int(

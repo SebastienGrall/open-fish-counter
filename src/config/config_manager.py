@@ -4,6 +4,9 @@ from pathlib import Path
 
 
 DEFAULT_CONFIG = {
+    "station": {
+        "name": "Station",
+    },
     "camera": {
         "index": 1,
         "width": 720,

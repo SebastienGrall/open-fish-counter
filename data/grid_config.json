@@ -1,4 +1,7 @@
 {
+    "station": {
+        "name": "Station_TEST"
+    },
     "camera": {
         "index": 1,
         "width": 720,

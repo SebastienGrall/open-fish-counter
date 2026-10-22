@@ -6,12 +6,14 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QSpinBox,
     QVBoxLayout,
+    QLineEdit,
 )
 
 
 class SettingsDialog(QDialog):
     def __init__(
         self,
+        station_name,
         pixel_threshold,
         required_motion_frames,
         no_motion_delay,
@@ -31,6 +33,40 @@ class SettingsDialog(QDialog):
         self.setMinimumWidth(400)
 
         main_layout = QVBoxLayout(self)
+
+        station_group = QGroupBox(
+            "Station"
+        )
+
+        station_layout = QFormLayout(
+            station_group
+        )
+
+        self.station_name_edit = QLineEdit()
+
+        self.station_name_edit.setText(
+            str(station_name)
+        )
+
+        self.station_name_edit.setMaxLength(100)
+
+        self.station_name_edit.setPlaceholderText(
+            "Exemple : Passe à poissons du Moulin"
+        )
+
+        self.station_name_edit.setToolTip(
+            "Nom de la station ajouté aux vidéos, "
+            "aux métadonnées et aux futurs résultats."
+        )
+
+        station_layout.addRow(
+            "Nom de la station :",
+            self.station_name_edit,
+        )
+
+        main_layout.addWidget(
+            station_group
+        )
 
         camera_group = QGroupBox(
             "Caméra"
@@ -219,6 +255,9 @@ class SettingsDialog(QDialog):
 
     def get_settings(self):
         return {
+            "station_name": (
+                self.station_name_edit.text().strip()
+            ),
             "pixel_threshold": (
                 self.pixel_threshold_spinbox.value()
             ),
