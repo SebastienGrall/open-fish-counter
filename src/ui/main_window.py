@@ -3,8 +3,7 @@ import time
 from pathlib import Path
 import cv2
 import gc
-
-
+import shutil
 
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import (
@@ -257,6 +256,36 @@ class MainWindow(QMainWindow):
             )
         )
 
+        self.disk_warning_percent = int(
+            recording_config.get(
+                "disk_warning_percent",
+                90,
+            )
+        )
+
+        self.disk_stop_percent = int(
+            recording_config.get(
+                "disk_stop_percent",
+                95,
+            )
+        )
+
+        self.disk_warning_percent = max(
+            1,
+            min(
+                99,
+                self.disk_warning_percent,
+            ),
+        )
+
+        self.disk_stop_percent = max(
+            self.disk_warning_percent + 1,
+            min(
+                100,
+                self.disk_stop_percent,
+            ),
+        )
+
         configured_recordings_directory = (
             recording_config.get(
                 "output_directory",
@@ -340,6 +369,14 @@ class MainWindow(QMainWindow):
 
         # État de l'enregistrement.
         self.recording_enabled = True
+
+        # Indique que les enregistrements sont temporairement
+        # bloqués en raison de l'occupation du disque.
+        self.disk_recording_blocked = False
+
+        # Évite de répéter le même avertissement dans les logs
+        # à chaque contrôle du disque.
+        self.last_disk_status = None
 
         # Ouverture de la caméra.
         self.camera_manager = CameraManager(
@@ -449,6 +486,23 @@ class MainWindow(QMainWindow):
             "Enregistrement automatique : ACTIVÉ"
         )
 
+        self.disk_status_label = QLabel(
+            "Disque : vérification en cours..."
+        )
+
+        self.disk_status_label.setWordWrap(
+            True
+        )
+
+        self.disk_status_label.setStyleSheet(
+            "font-weight: bold; color: gray;"
+        )
+
+        self.disk_status_label.setToolTip(
+            "Occupation du disque contenant le dossier "
+            "d'enregistrement."
+        )
+
         self.recording_status_label.setStyleSheet(
             "font-weight: bold; color: green;"
         )
@@ -549,6 +603,10 @@ class MainWindow(QMainWindow):
         )
 
         side_layout.addWidget(
+            self.disk_status_label
+        )
+
+        side_layout.addWidget(
             self.start_recording_button
         )
 
@@ -576,6 +634,22 @@ class MainWindow(QMainWindow):
         self.timer.timeout.connect(self.update_frame)
 
         self.timer.start(30)
+
+        # L'espace disque n'a pas besoin d'être vérifié à
+        # chaque image. Un contrôle toutes les dix secondes
+        # est suffisant.
+        self.disk_timer = QTimer(self)
+
+        self.disk_timer.timeout.connect(
+            self.check_disk_usage
+        )
+
+        self.disk_timer.start(
+            10000
+        )
+
+        # Premier contrôle immédiat sans attendre dix secondes.
+        self.check_disk_usage()
 
     def update_frame(self):
         if not self.camera_manager.is_open:
@@ -684,34 +758,28 @@ class MainWindow(QMainWindow):
         self.video_widget.set_frame(frame)
 
     def enable_recording(self):
+        if self.disk_recording_blocked:
+            self.logger.warning(
+                "Activation des enregistrements refusée : "
+                "le disque a atteint le seuil critique."
+            )
+
+            self.update_recording_controls()
+
+            return
+
         self.recording_enabled = True
 
-        self.recording_status_label.setText(
-            "Enregistrement automatique : ACTIVÉ"
+        self.update_recording_controls()
+
+        self.logger.info(
+            "Enregistrement automatique activé."
         )
-
-        self.recording_status_label.setStyleSheet(
-            "font-weight: bold; color: green;"
-        )
-
-        self.start_recording_button.setEnabled(False)
-        self.stop_recording_button.setEnabled(True)
-
-        print("Enregistrement automatique activé.")
 
     def disable_recording(self):
         self.recording_enabled = False
 
-        self.recording_status_label.setText(
-            "Enregistrement automatique : ARRÊTÉ"
-        )
-
-        self.recording_status_label.setStyleSheet(
-            "font-weight: bold; color: red;"
-        )
-
-        self.start_recording_button.setEnabled(True)
-        self.stop_recording_button.setEnabled(False)
+        self.update_recording_controls()
 
         # Si un fichier est actuellement ouvert,
         # on le termine proprement.
@@ -719,26 +787,52 @@ class MainWindow(QMainWindow):
             snapshot_path = (
                 self.save_event_snapshot()
             )
-            saved_path = self.video_recorder.stop()
+
+            saved_path = (
+                self.video_recorder.stop()
+            )
 
             if saved_path is not None:
-                print(
-                    "Enregistrement interrompu et sauvegardé : "
-                    f"{saved_path}"
+                self.logger.info(
+                    "Enregistrement interrompu et "
+                    "sauvegardé : %s",
+                    saved_path,
                 )
 
-        print("Enregistrement automatique arrêté.")
+            if snapshot_path is not None:
+                self.logger.info(
+                    "Snapshot sauvegardé : %s",
+                    snapshot_path,
+                )
+
+        self.logger.info(
+            "Enregistrement automatique arrêté."
+        )
 
     def closeEvent(self, event):
         self.logger.info(
             "Fermeture de l'application."
         )
 
-        # Empêche tout nouvel appel à update_frame().
+        # Empêche tout nouveau contrôle vidéo ou disque.
         self.timer.stop()
-        self.timer.timeout.disconnect(
-            self.update_frame
-        )
+        self.disk_timer.stop()
+
+        try:
+            self.timer.timeout.disconnect(
+                self.update_frame
+            )
+
+        except RuntimeError:
+            pass
+
+        try:
+            self.disk_timer.timeout.disconnect(
+                self.check_disk_usage
+            )
+
+        except RuntimeError:
+            pass
 
         if self.video_recorder.is_recording:
             self.logger.info(
@@ -748,14 +842,13 @@ class MainWindow(QMainWindow):
 
             self.video_recorder.stop()
 
-        # Supprime les images conservées par l'application.
+        # Libère les images conservées par l'application.
         self.best_snapshot_frame = None
 
         self.frame_buffer.clear()
-
         self.motion_detector.reset()
 
-        # Arrête et libère explicitement IC4.
+        # Arrête le flux puis libère explicitement IC4.
         self.camera_manager.shutdown()
 
         # Détruit les derniers objets associés pendant que
@@ -841,11 +934,21 @@ class MainWindow(QMainWindow):
             f"{estimated_fps:.2f}"
         )
 
+        if self.disk_recording_blocked:
+            self.logger.warning(
+                "Événement détecté, mais aucun fichier "
+                "n'est créé car le disque a atteint "
+                "le seuil critique."
+            )
+
+            return
+
         if not self.recording_enabled:
             print(
                 "Événement détecté, mais "
                 "l'enregistrement est désactivé."
             )
+
             return
 
         self.video_recorder.start(
@@ -923,6 +1026,12 @@ class MainWindow(QMainWindow):
                 ),
                 "snapshots_enabled": (
                     self.snapshots_enabled
+                ),
+                "disk_warning_percent": (
+                    self.disk_warning_percent
+                ),
+                "disk_stop_percent": (
+                    self.disk_stop_percent
                 ),
             },
             "grid": {
@@ -1102,6 +1211,12 @@ class MainWindow(QMainWindow):
                 snapshots_enabled=(
                     self.snapshots_enabled
                 ),
+                disk_warning_percent=(
+                    self.disk_warning_percent
+                ),
+                disk_stop_percent=(
+                    self.disk_stop_percent
+                ),
                 camera_backend=self.camera_backend,
                 camera_serial=self.camera_serial,
                 ic4_devices=ic4_devices,
@@ -1171,6 +1286,44 @@ class MainWindow(QMainWindow):
                 "snapshots_enabled",
                 False,
             )
+        )
+
+        new_disk_warning_percent = int(
+            settings.get(
+                "disk_warning_percent",
+                90,
+            )
+        )
+
+        new_disk_stop_percent = int(
+            settings.get(
+                "disk_stop_percent",
+                95,
+            )
+        )
+
+        new_disk_warning_percent = max(
+            1,
+            min(
+                99,
+                new_disk_warning_percent,
+            ),
+        )
+
+        new_disk_stop_percent = max(
+            new_disk_warning_percent + 1,
+            min(
+                100,
+                new_disk_stop_percent,
+            ),
+        )
+
+        self.disk_warning_percent = (
+            new_disk_warning_percent
+        )
+
+        self.disk_stop_percent = (
+            new_disk_stop_percent
         )
 
         new_station_name = str(
@@ -1417,6 +1570,9 @@ class MainWindow(QMainWindow):
 
         self.save_grid_config()
 
+        self.last_disk_status = None
+        self.check_disk_usage()
+
         if camera_changed:
             self.restart_camera()
 
@@ -1595,6 +1751,13 @@ class MainWindow(QMainWindow):
             self.recordings_directory,
         )
 
+        if hasattr(
+            self,
+            "disk_status_label",
+        ):
+            self.last_disk_status = None
+            self.check_disk_usage()
+
         return True    
 
     def reset_snapshot_state(self):
@@ -1688,3 +1851,359 @@ class MainWindow(QMainWindow):
         )
 
         return snapshot_path
+
+    @staticmethod
+    def format_disk_size(size_bytes):
+        """
+        Convertit une taille en octets en une valeur lisible.
+        """
+        size_value = float(
+            max(
+                0,
+                size_bytes,
+            )
+        )
+
+        units = (
+            "o",
+            "Ko",
+            "Mo",
+            "Go",
+            "To",
+        )
+
+        for unit in units:
+            if size_value < 1024.0 or unit == units[-1]:
+                if unit == "o":
+                    return f"{size_value:.0f} {unit}"
+
+                return f"{size_value:.1f} {unit}"
+
+            size_value /= 1024.0
+
+        return f"{size_value:.1f} To"
+
+    def get_disk_usage(self):
+        """
+        Retourne l'occupation du disque contenant le dossier
+        d'enregistrement.
+
+        Le résultat contient :
+        - la taille totale ;
+        - l'espace utilisé ;
+        - l'espace disponible ;
+        - le pourcentage utilisé.
+        """
+        recordings_directory = Path(
+            self.recordings_directory
+        )
+
+        # Le dossier doit normalement déjà exister grâce à
+        # apply_recordings_directory(). Cette sécurité permet
+        # néanmoins de remonter jusqu'à un parent existant.
+        existing_directory = recordings_directory
+
+        while not existing_directory.exists():
+            parent_directory = (
+                existing_directory.parent
+            )
+
+            if parent_directory == existing_directory:
+                raise OSError(
+                    "Aucun dossier existant trouvé pour "
+                    f"{recordings_directory}"
+                )
+
+            existing_directory = (
+                parent_directory
+            )
+
+        disk_usage = shutil.disk_usage(
+            existing_directory
+        )
+
+        if disk_usage.total <= 0:
+            raise OSError(
+                "La taille totale du disque est invalide."
+            )
+
+        used_percent = (
+            disk_usage.used
+            / disk_usage.total
+            * 100.0
+        )
+
+        return {
+            "total": disk_usage.total,
+            "used": disk_usage.used,
+            "free": disk_usage.free,
+            "used_percent": used_percent,
+            "checked_path": existing_directory,
+        }
+
+    def check_disk_usage(self):
+        """
+        Met à jour l'indicateur d'occupation du disque et
+        bloque les enregistrements au seuil critique.
+        """
+        try:
+            disk_usage = self.get_disk_usage()
+
+        except OSError as error:
+            self.disk_status_label.setText(
+                "Disque : état indisponible"
+            )
+
+            self.disk_status_label.setStyleSheet(
+                "font-weight: bold; color: red;"
+            )
+
+            if self.last_disk_status != "error":
+                self.logger.error(
+                    "Impossible de contrôler l'espace disque : %s",
+                    error,
+                )
+
+            self.last_disk_status = "error"
+
+            self.set_disk_recording_blocked(
+                True,
+                reason=(
+                    "Impossible de vérifier l'espace disque."
+                ),
+            )
+
+            return
+
+        used_percent = float(
+            disk_usage["used_percent"]
+        )
+
+        free_text = self.format_disk_size(
+            disk_usage["free"]
+        )
+
+        total_text = self.format_disk_size(
+            disk_usage["total"]
+        )
+
+        self.disk_status_label.setText(
+            f"Disque : {used_percent:.1f} % utilisé\n"
+            f"Disponible : {free_text} sur {total_text}"
+        )
+
+        if used_percent >= self.disk_stop_percent:
+            disk_status = "critical"
+
+            self.disk_status_label.setStyleSheet(
+                "font-weight: bold; color: red;"
+            )
+
+            if self.last_disk_status != disk_status:
+                self.logger.error(
+                    "Seuil critique du disque atteint | "
+                    "occupation=%.1f %% | seuil=%d %% | "
+                    "disponible=%s",
+                    used_percent,
+                    self.disk_stop_percent,
+                    free_text,
+                )
+
+            self.set_disk_recording_blocked(
+                True,
+                reason=(
+                    "Espace disque insuffisant "
+                    f"({used_percent:.1f} % utilisé)."
+                ),
+            )
+
+        elif used_percent >= self.disk_warning_percent:
+            disk_status = "warning"
+
+            self.disk_status_label.setStyleSheet(
+                "font-weight: bold; color: orange;"
+            )
+
+            if self.last_disk_status != disk_status:
+                self.logger.warning(
+                    "Seuil d'avertissement du disque atteint | "
+                    "occupation=%.1f %% | seuil=%d %% | "
+                    "disponible=%s",
+                    used_percent,
+                    self.disk_warning_percent,
+                    free_text,
+                )
+
+            # Le seuil critique n'est plus atteint.
+            self.set_disk_recording_blocked(
+                False
+            )
+
+        else:
+            disk_status = "normal"
+
+            self.disk_status_label.setStyleSheet(
+                "font-weight: bold; color: green;"
+            )
+
+            if self.last_disk_status in (
+                "warning",
+                "critical",
+                "error",
+            ):
+                self.logger.info(
+                    "Espace disque revenu à un niveau normal | "
+                    "occupation=%.1f %% | disponible=%s",
+                    used_percent,
+                    free_text,
+                )
+
+            self.set_disk_recording_blocked(
+                False
+            )
+
+        self.last_disk_status = disk_status
+
+    def set_disk_recording_blocked(
+        self,
+        blocked,
+        reason=None,
+    ):
+        """
+        Active ou désactive le blocage des enregistrements
+        provoqué par l'état du disque.
+
+        Le choix manuel de l'utilisateur est conservé dans
+        self.recording_enabled.
+        """
+        blocked = bool(
+            blocked
+        )
+
+        state_changed = (
+            blocked
+            != self.disk_recording_blocked
+        )
+
+        self.disk_recording_blocked = (
+            blocked
+        )
+
+        if blocked:
+            if self.video_recorder.is_recording:
+                self.logger.warning(
+                    "Finalisation de la vidéo en cours "
+                    "en raison de l'état du disque."
+                )
+
+                snapshot_path = (
+                    self.save_event_snapshot()
+                )
+
+                saved_path = (
+                    self.video_recorder.stop()
+                )
+
+                if saved_path is not None:
+                    self.logger.info(
+                        "Vidéo finalisée avant saturation : %s",
+                        saved_path,
+                    )
+
+                if snapshot_path is not None:
+                    self.logger.info(
+                        "Snapshot sauvegardé avant "
+                        "saturation : %s",
+                        snapshot_path,
+                    )
+
+            self.recording_status_label.setText(
+                "Enregistrement automatique : "
+                "BLOQUÉ PAR LE DISQUE"
+            )
+
+            self.recording_status_label.setStyleSheet(
+                "font-weight: bold; color: red;"
+            )
+
+            self.start_recording_button.setEnabled(
+                False
+            )
+
+            self.stop_recording_button.setEnabled(
+                False
+            )
+
+            if state_changed:
+                self.logger.error(
+                    "Enregistrements bloqués : %s",
+                    reason
+                    or "espace disque insuffisant",
+                )
+
+            return
+
+        # Le disque est de nouveau utilisable.
+        if state_changed:
+            self.logger.info(
+                "Blocage des enregistrements par le disque levé."
+            )
+
+        self.update_recording_controls()
+
+    def update_recording_controls(self):
+        """
+        Met à jour l'état visuel des contrôles en fonction
+        du choix de l'utilisateur et de l'état du disque.
+        """
+        if self.disk_recording_blocked:
+            self.recording_status_label.setText(
+                "Enregistrement automatique : "
+                "BLOQUÉ PAR LE DISQUE"
+            )
+
+            self.recording_status_label.setStyleSheet(
+                "font-weight: bold; color: red;"
+            )
+
+            self.start_recording_button.setEnabled(
+                False
+            )
+
+            self.stop_recording_button.setEnabled(
+                False
+            )
+
+        elif self.recording_enabled:
+            self.recording_status_label.setText(
+                "Enregistrement automatique : ACTIVÉ"
+            )
+
+            self.recording_status_label.setStyleSheet(
+                "font-weight: bold; color: green;"
+            )
+
+            self.start_recording_button.setEnabled(
+                False
+            )
+
+            self.stop_recording_button.setEnabled(
+                True
+            )
+
+        else:
+            self.recording_status_label.setText(
+                "Enregistrement automatique : ARRÊTÉ"
+            )
+
+            self.recording_status_label.setStyleSheet(
+                "font-weight: bold; color: red;"
+            )
+
+            self.start_recording_button.setEnabled(
+                True
+            )
+
+            self.stop_recording_button.setEnabled(
+                False
+            )

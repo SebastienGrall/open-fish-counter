@@ -27,6 +27,8 @@ class SettingsDialog(QDialog):
         pre_event_seconds,
         recordings_directory,
         snapshots_enabled,
+        disk_warning_percent,
+        disk_stop_percent,
         camera_backend,
         camera_serial,
         ic4_devices,
@@ -473,6 +475,77 @@ class SettingsDialog(QDialog):
             self.pre_event_spinbox,
         )
 
+        self.disk_warning_spinbox = QSpinBox()
+
+        self.disk_warning_spinbox.setRange(
+            1,
+            99,
+        )
+
+        self.disk_warning_spinbox.setSuffix(
+            " %"
+        )
+
+        self.disk_warning_spinbox.setValue(
+            max(
+                1,
+                min(
+                    99,
+                    int(disk_warning_percent),
+                ),
+            )
+        )
+
+        self.disk_warning_spinbox.setToolTip(
+            "Pourcentage d'occupation du disque à partir "
+            "duquel un avertissement est affiché."
+        )
+
+        recording_layout.addRow(
+            "Avertissement disque :",
+            self.disk_warning_spinbox,
+        )
+
+        self.disk_stop_spinbox = QSpinBox()
+
+        self.disk_stop_spinbox.setRange(
+            2,
+            100,
+        )
+
+        self.disk_stop_spinbox.setSuffix(
+            " %"
+        )
+
+        self.disk_stop_spinbox.setValue(
+            max(
+                2,
+                min(
+                    100,
+                    int(disk_stop_percent),
+                ),
+            )
+        )
+
+        self.disk_stop_spinbox.setToolTip(
+            "Pourcentage d'occupation du disque à partir "
+            "duquel les enregistrements sont arrêtés "
+            "et les nouveaux enregistrements sont bloqués."
+        )
+
+        recording_layout.addRow(
+            "Arrêt des enregistrements :",
+            self.disk_stop_spinbox,
+        )
+
+        self.disk_warning_spinbox.valueChanged.connect(
+            self.update_disk_thresholds
+        )
+
+        self.disk_stop_spinbox.valueChanged.connect(
+            self.update_disk_thresholds
+        )
+
         self.recordings_directory_edit = (
             QLineEdit()
         )
@@ -564,6 +637,53 @@ class SettingsDialog(QDialog):
 
         self.update_camera_fields()
 
+        self.update_disk_thresholds()
+
+    def update_disk_thresholds(self):
+        warning_percent = (
+            self.disk_warning_spinbox.value()
+        )
+
+        stop_percent = (
+            self.disk_stop_spinbox.value()
+        )
+
+        if stop_percent <= warning_percent:
+            self.disk_stop_spinbox.blockSignals(
+                True
+            )
+
+            self.disk_stop_spinbox.setValue(
+                min(
+                    100,
+                    warning_percent + 1,
+                )
+            )
+
+            self.disk_stop_spinbox.blockSignals(
+                False
+            )
+
+        stop_percent = (
+            self.disk_stop_spinbox.value()
+        )
+
+        if warning_percent >= stop_percent:
+            self.disk_warning_spinbox.blockSignals(
+                True
+            )
+
+            self.disk_warning_spinbox.setValue(
+                max(
+                    1,
+                    stop_percent - 1,
+                )
+            )
+
+            self.disk_warning_spinbox.blockSignals(
+                False
+            )
+
     def get_settings(self):
         return {
             "station_name": (
@@ -586,6 +706,12 @@ class SettingsDialog(QDialog):
             ),
             "snapshots_enabled": (
                 self.snapshots_enabled_checkbox.isChecked()
+            ),
+            "disk_warning_percent": (
+                self.disk_warning_spinbox.value()
+            ),
+            "disk_stop_percent": (
+                self.disk_stop_spinbox.value()
             ),
             "camera_backend": (
                 self.camera_backend_combo.currentData()

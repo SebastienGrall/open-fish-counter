@@ -22,7 +22,9 @@
     "recording": {
         "pre_event_seconds": 1.0,
         "output_directory": "C:\\Users\\seino\\Videos\\OpenFishCounter",
-        "snapshots_enabled": false
+        "snapshots_enabled": false,
+        "disk_warning_percent": 90,
+        "disk_stop_percent": 95
     },
     "grid": {
         "rows": 8,
