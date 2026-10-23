@@ -29,6 +29,7 @@ class SettingsDialog(QDialog):
         snapshots_enabled,
         disk_warning_percent,
         disk_stop_percent,
+        max_video_duration_minutes,
         camera_backend,
         camera_serial,
         ic4_devices,
@@ -546,6 +547,43 @@ class SettingsDialog(QDialog):
             self.update_disk_thresholds
         )
 
+        self.max_video_duration_spinbox = (
+            QSpinBox()
+        )
+
+        self.max_video_duration_spinbox.setRange(
+            1,
+            1440,
+        )
+
+        self.max_video_duration_spinbox.setSuffix(
+            " min"
+        )
+
+        self.max_video_duration_spinbox.setValue(
+            max(
+                1,
+                min(
+                    1440,
+                    int(
+                        max_video_duration_minutes
+                    ),
+                ),
+            )
+        )
+
+        self.max_video_duration_spinbox.setToolTip(
+            "Durée maximale d'un fichier vidéo.\n"
+            "Si un événement dure plus longtemps, "
+            "il est poursuivi automatiquement dans "
+            "un nouveau fichier appartenant au même événement."
+        )
+
+        recording_layout.addRow(
+            "Durée maximale d'un fichier :",
+            self.max_video_duration_spinbox,
+        )
+
         self.recordings_directory_edit = (
             QLineEdit()
         )
@@ -712,6 +750,9 @@ class SettingsDialog(QDialog):
             ),
             "disk_stop_percent": (
                 self.disk_stop_spinbox.value()
+            ),
+            "max_video_duration_minutes": (
+                self.max_video_duration_spinbox.value()
             ),
             "camera_backend": (
                 self.camera_backend_combo.currentData()

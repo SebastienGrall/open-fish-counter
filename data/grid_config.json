@@ -24,7 +24,8 @@
         "output_directory": "C:\\Users\\seino\\Videos\\OpenFishCounter",
         "snapshots_enabled": false,
         "disk_warning_percent": 90,
-        "disk_stop_percent": 95
+        "disk_stop_percent": 95,
+        "max_video_duration_minutes": 10
     },
     "grid": {
         "rows": 8,

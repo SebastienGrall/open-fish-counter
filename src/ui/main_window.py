@@ -286,6 +286,26 @@ class MainWindow(QMainWindow):
             ),
         )
 
+        self.max_video_duration_minutes = int(
+            recording_config.get(
+                "max_video_duration_minutes",
+                10,
+            )
+        )
+
+        self.max_video_duration_minutes = max(
+            1,
+            min(
+                1440,
+                self.max_video_duration_minutes,
+            ),
+        )
+
+        self.max_video_duration_seconds = (
+            self.max_video_duration_minutes
+            * 60.0
+        )
+
         configured_recordings_directory = (
             recording_config.get(
                 "output_directory",
@@ -425,7 +445,11 @@ class MainWindow(QMainWindow):
                 self.recordings_directory
             ),
             fps=camera_fps,
+            max_video_duration_seconds=(
+                self.max_video_duration_seconds
+            ),
         )
+        
 
         self.logger.info(
             "Fréquence d'enregistrement : %.2f images/s",
@@ -1033,6 +1057,9 @@ class MainWindow(QMainWindow):
                 "disk_stop_percent": (
                     self.disk_stop_percent
                 ),
+                "max_video_duration_minutes": (
+                    self.max_video_duration_minutes
+                ),
             },
             "grid": {
                 "rows": (
@@ -1217,6 +1244,9 @@ class MainWindow(QMainWindow):
                 disk_stop_percent=(
                     self.disk_stop_percent
                 ),
+                max_video_duration_minutes=(
+                    self.max_video_duration_minutes
+                ),
                 camera_backend=self.camera_backend,
                 camera_serial=self.camera_serial,
                 ic4_devices=ic4_devices,
@@ -1324,6 +1354,34 @@ class MainWindow(QMainWindow):
 
         self.disk_stop_percent = (
             new_disk_stop_percent
+        )
+
+        new_max_video_duration_minutes = int(
+            settings.get(
+                "max_video_duration_minutes",
+                10,
+            )
+        )
+
+        new_max_video_duration_minutes = max(
+            1,
+            min(
+                1440,
+                new_max_video_duration_minutes,
+            ),
+        )
+
+        self.max_video_duration_minutes = (
+            new_max_video_duration_minutes
+        )
+
+        self.max_video_duration_seconds = (
+            self.max_video_duration_minutes
+            * 60.0
+        )
+
+        self.video_recorder.set_max_video_duration_seconds(
+            self.max_video_duration_seconds
         )
 
         new_station_name = str(
