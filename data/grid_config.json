@@ -4,8 +4,8 @@
     },
     "camera": {
         "backend": "ic4",
-        "serial": "09620071",
-        "index": 0,
+        "serial": null,
+        "index": 1,
         "width": 720,
         "height": 540,
         "fps": 30.0
@@ -17,7 +17,7 @@
     },
     "recording": {
         "pre_event_seconds": 1.0,
-        "output_directory": "/home/videocomptage/Vidéos/OpenFishCounter",
+        "output_directory": "C:\\Users\\seino\\Videos\\OpenFishCounter",
         "snapshots_enabled": false
     },
     "grid": {
