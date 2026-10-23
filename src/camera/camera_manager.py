@@ -28,6 +28,10 @@ class CameraManager:
         requested_fps=30.0,
         camera_backend="opencv",
         camera_serial=None,
+        exposure_auto=True,
+        exposure_time=5000.0,
+        gain_auto=True,
+        gain=0.0,
     ):
         self.logger = get_logger("camera")
 
@@ -37,6 +41,24 @@ class CameraManager:
             str(camera_serial).strip()
             if camera_serial
             else None
+        )
+
+        self.exposure_auto = bool(
+            exposure_auto
+        )
+
+        self.exposure_time = max(
+            1.0,
+            float(exposure_time),
+        )
+
+        self.gain_auto = bool(
+            gain_auto
+        )
+
+        self.gain = max(
+            0.0,
+            float(gain),
         )
 
         self.requested_width = max(1, int(requested_width))
@@ -104,6 +126,10 @@ class CameraManager:
         requested_fps=None,
         camera_backend=None,
         camera_serial=None,
+        exposure_auto=None,
+        exposure_time=None,
+        gain_auto=None,
+        gain=None,
     ):
         self.update_settings(
             camera_index=camera_index,
@@ -112,7 +138,12 @@ class CameraManager:
             requested_fps=requested_fps,
             camera_backend=camera_backend,
             camera_serial=camera_serial,
+            exposure_auto=exposure_auto,
+            exposure_time=exposure_time,
+            gain_auto=gain_auto,
+            gain=gain,
         )
+
         return self.open()
 
     def update_settings(
@@ -123,6 +154,10 @@ class CameraManager:
         requested_fps=None,
         camera_backend=None,
         camera_serial=None,
+        exposure_auto=None,
+        exposure_time=None,
+        gain_auto=None,
+        gain=None,
     ):
         if camera_index is not None:
             self.camera_index = int(camera_index)
@@ -157,6 +192,28 @@ class CameraManager:
             self.camera_serial = (
                 serial or None
             )
+        if exposure_auto is not None:
+            self.exposure_auto = bool(
+                exposure_auto
+            )
+
+        if exposure_time is not None:
+            self.exposure_time = max(
+                1.0,
+                float(exposure_time),
+            )
+
+        if gain_auto is not None:
+            self.gain_auto = bool(
+                gain_auto
+            )
+
+        if gain is not None:
+            self.gain = max(
+                0.0,
+                float(gain),
+            )
+        
 
     def close(self):
         """
@@ -260,6 +317,16 @@ class CameraManager:
             "width": self.actual_width,
             "height": self.actual_height,
             "fps": self.actual_fps,
+            "exposure_auto": (
+                self.exposure_auto
+            ),
+            "exposure_time": (
+                self.exposure_time
+            ),
+            "gain_auto": (
+                self.gain_auto
+            ),
+            "gain": self.gain,
         }
 
     def get_available_ic4_devices(self):
@@ -633,6 +700,102 @@ class CameraManager:
                     value,
                     self._format_error(error),
                 )
+
+        self._apply_ic4_exposure_settings(
+            property_map
+        )
+        self._apply_ic4_gain_settings(
+            property_map
+        )
+
+    def _apply_ic4_exposure_settings(
+        self,
+        property_map,
+    ):
+        """
+        Applique les réglages d'exposition IC4.
+
+        En mode automatique, le temps manuel mémorisé
+        n'est pas appliqué.
+        """
+        try:
+            if self.exposure_auto:
+                property_map.set_value(
+                    ic4.PropId.EXPOSURE_AUTO,
+                    "Continuous",
+                )
+
+                self.logger.info(
+                    "Exposition IC4 automatique activée."
+                )
+
+            else:
+                property_map.set_value(
+                    ic4.PropId.EXPOSURE_AUTO,
+                    "Off",
+                )
+
+                property_map.set_value(
+                    ic4.PropId.EXPOSURE_TIME,
+                    self.exposure_time,
+                )
+
+                self.logger.info(
+                    "Exposition IC4 manuelle | "
+                    "temps=%.1f µs",
+                    self.exposure_time,
+                )
+
+        except Exception as error:
+            self.logger.warning(
+                "Impossible d'appliquer l'exposition "
+                "IC4 : %s",
+                self._format_error(error),
+            )
+
+    def _apply_ic4_gain_settings(
+        self,
+        property_map,
+    ):
+        """
+        Applique les réglages de gain IC4.
+
+        En mode automatique, le gain manuel mémorisé
+        n'est pas appliqué.
+        """
+        try:
+            if self.gain_auto:
+                property_map.set_value(
+                    ic4.PropId.GAIN_AUTO,
+                    "Continuous",
+                )
+
+                self.logger.info(
+                    "Gain IC4 automatique activé."
+                )
+
+            else:
+                property_map.set_value(
+                    ic4.PropId.GAIN_AUTO,
+                    "Off",
+                )
+
+                property_map.set_value(
+                    ic4.PropId.GAIN,
+                    self.gain,
+                )
+
+                self.logger.info(
+                    "Gain IC4 manuel | gain=%.2f",
+                    self.gain,
+                )
+
+        except Exception as error:
+            self.logger.warning(
+                "Impossible d'appliquer le gain "
+                "IC4 : %s",
+                self._format_error(error),
+            )
 
     def _read_ic4_fps(self):
         try:

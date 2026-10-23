@@ -34,6 +34,10 @@ class SettingsDialog(QDialog):
         camera_width,
         camera_height,
         camera_fps,
+        camera_exposure_auto,
+        camera_exposure_time,
+        camera_gain_auto,
+        camera_gain,
         parent=None,
     ):
         super().__init__(parent)
@@ -236,6 +240,129 @@ class SettingsDialog(QDialog):
         )
 
         main_layout.addWidget(camera_group)
+
+        # Réglages avancés propres aux caméras IC4.
+        self.ic4_settings_group = QGroupBox(
+            "Réglages avancés IC4"
+        )
+
+        ic4_settings_layout = QFormLayout(
+            self.ic4_settings_group
+        )
+
+        self.exposure_auto_checkbox = QCheckBox(
+            "Exposition automatique"
+        )
+
+        self.exposure_auto_checkbox.setChecked(
+            bool(camera_exposure_auto)
+        )
+
+        self.exposure_auto_checkbox.setToolTip(
+            "Laisse la caméra adapter automatiquement "
+            "le temps d'exposition."
+        )
+
+        ic4_settings_layout.addRow(
+            "Exposition :",
+            self.exposure_auto_checkbox,
+        )
+
+        self.exposure_time_spinbox = (
+            QDoubleSpinBox()
+        )
+
+        self.exposure_time_spinbox.setRange(
+            1.0,
+            1000000.0,
+        )
+
+        self.exposure_time_spinbox.setDecimals(
+            1
+        )
+
+        self.exposure_time_spinbox.setSingleStep(
+            100.0
+        )
+
+        self.exposure_time_spinbox.setSuffix(
+            " µs"
+        )
+
+        self.exposure_time_spinbox.setValue(
+            float(camera_exposure_time)
+        )
+
+        self.exposure_time_spinbox.setToolTip(
+            "Temps pendant lequel le capteur reçoit "
+            "la lumière pour chaque image.\n"
+            "Une valeur courte limite le flou de mouvement."
+        )
+
+        ic4_settings_layout.addRow(
+            "Temps d'exposition :",
+            self.exposure_time_spinbox,
+        )
+
+        self.gain_auto_checkbox = QCheckBox(
+            "Gain automatique"
+        )
+
+        self.gain_auto_checkbox.setChecked(
+            bool(camera_gain_auto)
+        )
+
+        self.gain_auto_checkbox.setToolTip(
+            "Laisse la caméra adapter automatiquement "
+            "l'amplification du signal."
+        )
+
+        ic4_settings_layout.addRow(
+            "Gain :",
+            self.gain_auto_checkbox,
+        )
+
+        self.gain_spinbox = QDoubleSpinBox()
+
+        self.gain_spinbox.setRange(
+            0.0,
+            100.0,
+        )
+
+        self.gain_spinbox.setDecimals(
+            2
+        )
+
+        self.gain_spinbox.setSingleStep(
+            0.1
+        )
+
+        self.gain_spinbox.setValue(
+            float(camera_gain)
+        )
+
+        self.gain_spinbox.setToolTip(
+            "Amplification du signal du capteur.\n"
+            "Une valeur élevée éclaircit l'image, "
+            "mais augmente également le bruit."
+        )
+
+        ic4_settings_layout.addRow(
+            "Gain manuel :",
+            self.gain_spinbox,
+        )
+
+        self.exposure_auto_checkbox.toggled.connect(
+            self.update_ic4_manual_fields
+        )
+
+        self.gain_auto_checkbox.toggled.connect(
+            self.update_ic4_manual_fields
+        )
+
+        main_layout.addWidget(
+            self.ic4_settings_group
+        )
 
         # Paramètres de détection
         detection_group = QGroupBox(
@@ -483,6 +610,18 @@ class SettingsDialog(QDialog):
             "camera_fps": (
                 self.camera_fps_spinbox.value()
             ),
+            "camera_exposure_auto": (
+                self.exposure_auto_checkbox.isChecked()
+            ),
+            "camera_exposure_time": (
+                self.exposure_time_spinbox.value()
+            ),
+            "camera_gain_auto": (
+                self.gain_auto_checkbox.isChecked()
+            ),
+            "camera_gain": (
+                self.gain_spinbox.value()
+            ),
         }
 
     def select_recordings_directory(self):
@@ -529,6 +668,10 @@ class SettingsDialog(QDialog):
             using_ic4
         )
 
+        self.ic4_settings_group.setEnabled(
+            using_ic4
+        )
+
         if using_ic4:
             self.camera_index_spinbox.setToolTip(
                 "L'index est ignoré avec une caméra IC4."
@@ -548,4 +691,35 @@ class SettingsDialog(QDialog):
                 "Ce champ est utilisé uniquement avec "
                 "le backend IC4."
             )
-    
+
+        self.update_ic4_manual_fields()
+
+    def update_ic4_manual_fields(self):
+        using_ic4 = (
+            self.camera_backend_combo.currentData()
+            == "ic4"
+        )
+
+        exposure_is_manual = (
+            using_ic4
+            and not (
+                self.exposure_auto_checkbox
+                .isChecked()
+            )
+        )
+
+        gain_is_manual = (
+            using_ic4
+            and not (
+                self.gain_auto_checkbox
+                .isChecked()
+            )
+        )
+
+        self.exposure_time_spinbox.setEnabled(
+            exposure_is_manual
+        )
+
+        self.gain_spinbox.setEnabled(
+            gain_is_manual
+        )

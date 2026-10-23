@@ -4,11 +4,15 @@
     },
     "camera": {
         "backend": "ic4",
-        "serial": null,
-        "index": 1,
+        "serial": "09620071",
+        "index": 0,
         "width": 720,
         "height": 540,
-        "fps": 30.0
+        "fps": 30.0,
+        "exposure_auto": true,
+        "exposure_time": 5000.0,
+        "gain_auto": true,
+        "gain": 0.0
     },
     "detection": {
         "pixel_threshold": 25,

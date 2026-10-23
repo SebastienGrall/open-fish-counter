@@ -208,6 +208,34 @@ class MainWindow(QMainWindow):
             )
         )
 
+        self.camera_exposure_auto = bool(
+            camera_config.get(
+                "exposure_auto",
+                True,
+            )
+        )
+
+        self.camera_exposure_time = float(
+            camera_config.get(
+                "exposure_time",
+                5000.0,
+            )
+        )
+
+        self.camera_gain_auto = bool(
+            camera_config.get(
+                "gain_auto",
+                True,
+            )
+        )
+
+        self.camera_gain = float(
+            camera_config.get(
+                "gain",
+                0.0,
+            )
+        )
+
         self.required_motion_frames = int(
             detection_config.get(
                 "required_motion_frames",
@@ -321,8 +349,18 @@ class MainWindow(QMainWindow):
             requested_fps=self.camera_fps,
             camera_backend=self.camera_backend,
             camera_serial=self.camera_serial,
+            exposure_auto=(
+                self.camera_exposure_auto
+            ),
+            exposure_time=(
+                self.camera_exposure_time
+            ),
+            gain_auto=(
+                self.camera_gain_auto
+            ),
+            gain=self.camera_gain,
         )
-
+        
         camera_opened = (
             self.camera_manager.open()
         )
@@ -854,6 +892,16 @@ class MainWindow(QMainWindow):
                 "width": self.camera_width,
                 "height": self.camera_height,
                 "fps": self.camera_fps,
+                "exposure_auto": (
+                    self.camera_exposure_auto
+                ),
+                "exposure_time": (
+                    self.camera_exposure_time
+                ),
+                "gain_auto": (
+                    self.camera_gain_auto
+                ),
+                "gain": self.camera_gain,
             },
             "detection": {
                 "pixel_threshold": (
@@ -1061,6 +1109,16 @@ class MainWindow(QMainWindow):
                 camera_width=self.camera_width,
                 camera_height=self.camera_height,
                 camera_fps=self.camera_fps,
+                camera_exposure_auto=(
+                    self.camera_exposure_auto
+                ),
+                camera_exposure_time=(
+                    self.camera_exposure_time
+                ),
+                camera_gain_auto=(
+                    self.camera_gain_auto
+                ),
+                camera_gain=self.camera_gain,
                 parent=self,
             )
 
@@ -1168,6 +1226,40 @@ class MainWindow(QMainWindow):
             settings["camera_fps"]
         )
 
+        new_camera_exposure_auto = bool(
+            settings.get(
+                "camera_exposure_auto",
+                True,
+            )
+        )
+
+        new_camera_exposure_time = max(
+            1.0,
+            float(
+                settings.get(
+                    "camera_exposure_time",
+                    5000.0,
+                )
+            ),
+        )
+
+        new_camera_gain_auto = bool(
+            settings.get(
+                "camera_gain_auto",
+                True,
+            )
+        )
+
+        new_camera_gain = max(
+            0.0,
+            float(
+                settings.get(
+                    "camera_gain",
+                    0.0,
+                )
+            ),
+        )
+
         camera_changed = (
             new_camera_backend
             != self.camera_backend
@@ -1181,6 +1273,14 @@ class MainWindow(QMainWindow):
             != self.camera_height
             or new_camera_fps
             != self.camera_fps
+            or new_camera_exposure_auto
+            != self.camera_exposure_auto
+            or new_camera_exposure_time
+            != self.camera_exposure_time
+            or new_camera_gain_auto
+            != self.camera_gain_auto
+            or new_camera_gain
+            != self.camera_gain
         )
 
 
@@ -1207,6 +1307,22 @@ class MainWindow(QMainWindow):
 
         self.camera_fps = (
             new_camera_fps
+        )
+
+        self.camera_exposure_auto = (
+            new_camera_exposure_auto
+        )
+
+        self.camera_exposure_time = (
+            new_camera_exposure_time
+        )
+
+        self.camera_gain_auto = (
+            new_camera_gain_auto
+        )
+
+        self.camera_gain = (
+            new_camera_gain
         )
 
  
@@ -1366,7 +1482,17 @@ class MainWindow(QMainWindow):
                 requested_fps=self.camera_fps,
                 camera_backend=self.camera_backend,
                 camera_serial=self.camera_serial,
-            )
+                exposure_auto=(
+                    self.camera_exposure_auto
+                ),
+                exposure_time=(
+                    self.camera_exposure_time
+                ),
+                gain_auto=(
+                    self.camera_gain_auto
+                ),
+                gain=self.camera_gain,
+                    )
         )
 
         if camera_opened:
