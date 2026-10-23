@@ -328,35 +328,70 @@ class CameraManager:
         return opened
 
     def _open_opencv(self):
-        backend = self._get_opencv_backend()
+        system_name = platform.system()
 
-        if backend is None:
-            self.capture = cv2.VideoCapture(self.camera_index)
+        if system_name == "Windows":
+            backends = (
+                cv2.CAP_DSHOW,
+                cv2.CAP_MSMF,
+                cv2.CAP_ANY,
+            )
+
+        elif system_name == "Linux":
+            backends = (
+                cv2.CAP_V4L2,
+                cv2.CAP_ANY,
+            )
+
         else:
-            self.capture = cv2.VideoCapture(
+            backends = (
+                cv2.CAP_ANY,
+            )
+
+        self.capture = None
+
+        for backend in backends:
+            capture = cv2.VideoCapture(
                 self.camera_index,
                 backend,
             )
 
-        if not self.capture.isOpened():
+            if capture.isOpened():
+                self.capture = capture
+                break
+
+            capture.release()
+
+        if (
+            self.capture is None
+            or not self.capture.isOpened()
+        ):
             self.last_error = (
                 "Impossible d'ouvrir la caméra OpenCV "
                 f"d'index {self.camera_index}."
             )
-            self.logger.warning("%s", self.last_error)
+
+            self.logger.warning(
+                "%s",
+                self.last_error,
+            )
+
             self.close()
+
             return False
 
         self._apply_opencv_settings()
         self._read_opencv_settings()
 
         self.logger.info(
-            "Caméra OpenCV ouverte | index=%d | résolution=%dx%d | fps=%.1f",
+            "Caméra OpenCV ouverte | index=%d | "
+            "résolution=%dx%d | fps=%.1f",
             self.camera_index,
             self.actual_width,
             self.actual_height,
             self.actual_fps,
         )
+
         return True
 
     def _read_opencv(self):
