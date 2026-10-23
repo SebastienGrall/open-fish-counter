@@ -21,4 +21,5 @@ dataset/*
 *.jpeg
 *.png
  
-
+# Paquet Debian
+*.deb
