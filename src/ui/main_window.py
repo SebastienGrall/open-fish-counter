@@ -2,6 +2,7 @@ import sys
 import time
 from pathlib import Path
 import cv2
+import gc
 
 
 
@@ -18,6 +19,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QComboBox,
     QDialog,
+    QMessageBox,
 )
 
 from ui.video_widget import VideoWidget
@@ -27,6 +29,9 @@ from recording.video_recorder import VideoRecorder
 from ui.settings_dialog import SettingsDialog
 from config.config_manager import ConfigManager
 from camera.camera_manager import CameraManager
+from utils.path_utils import (
+    prepare_recordings_directory,
+)
 from version import APP_NAME, APP_VERSION
 from logging_utils.log_manager import (
     get_logger,
@@ -36,8 +41,8 @@ from logging_utils.log_manager import (
 PROJECT_ROOT = (
     Path(__file__).resolve()
     .parent
-    .parent.
-    parent
+    .parent
+    .parent
 )
 
 CONFIG_FILE = (
@@ -194,7 +199,7 @@ class MainWindow(QMainWindow):
             )
         )
 
-        self.recordings_directory = Path(
+        configured_recordings_directory = (
             recording_config.get(
                 "output_directory",
                 str(
@@ -203,16 +208,45 @@ class MainWindow(QMainWindow):
                     / "recordings"
                 ),
             )
-        ).expanduser()
+        )
+
+        (
+            self.recordings_directory,
+            self.recordings_directory_was_replaced,
+        ) = prepare_recordings_directory(
+            configured_recordings_directory,
+            logger=None,
+        )
 
         self.logs_directory = (
             self.recordings_directory
             / "logs"
         )
 
+        self.logs_directory.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
         self.logger = setup_logging(
             self.logs_directory
         )
+
+        if self.recordings_directory_was_replaced:
+            self.logger.warning(
+                "Le dossier d'enregistrement configuré "
+                "a été remplacé."
+            )
+
+            self.logger.warning(
+                "Ancien dossier : %s",
+                configured_recordings_directory,
+            )
+
+            self.logger.warning(
+                "Nouveau dossier : %s",
+                self.recordings_directory,
+            )
 
         self.logger.info(
             "Démarrage de %s version %s",
@@ -255,6 +289,8 @@ class MainWindow(QMainWindow):
             requested_width=self.camera_width,
             requested_height=self.camera_height,
             requested_fps=self.camera_fps,
+            camera_backend="ic4",
+            camera_serial="09620071",
         )
 
         camera_opened = (
@@ -622,7 +658,11 @@ class MainWindow(QMainWindow):
             "Fermeture de l'application."
         )
 
+        # Empêche tout nouvel appel à update_frame().
         self.timer.stop()
+        self.timer.timeout.disconnect(
+            self.update_frame
+        )
 
         if self.video_recorder.is_recording:
             self.logger.info(
@@ -632,7 +672,23 @@ class MainWindow(QMainWindow):
 
             self.video_recorder.stop()
 
-        self.camera_manager.close()
+        # Supprime les images conservées par l'application.
+        self.best_snapshot_frame = None
+
+        self.frame_buffer.clear()
+
+        self.motion_detector.reset()
+
+        # Arrête et libère explicitement IC4.
+        self.camera_manager.shutdown()
+
+        # Détruit les derniers objets associés pendant que
+        # les extensions Python sont encore initialisées.
+        gc.collect()
+
+        self.logger.info(
+            "Fermeture de la caméra terminée."
+        )
 
         super().closeEvent(event)
 
@@ -922,43 +978,66 @@ class MainWindow(QMainWindow):
         )
 
     def open_settings_dialog(self):
-        dialog = SettingsDialog(
-            station_name=self.station_name,
-            pixel_threshold=(
-                self.motion_detector.pixel_threshold
-            ),
-            required_motion_frames=(
-                self.required_motion_frames
-            ),
-            no_motion_delay=(
-                self.no_motion_delay
-            ),
-            pre_event_seconds=(
-                self.pre_event_seconds
-            ),
-            recordings_directory=str(
-                self.recordings_directory
-            ),
-            snapshots_enabled=(
-                self.snapshots_enabled
-            ),
-            camera_index=self.camera_index,
-            camera_width=self.camera_width,
-            camera_height=self.camera_height,
-            camera_fps=self.camera_fps,
-            parent=self,
-        )
+        timer_was_active = self.timer.isActive()
 
-        result = dialog.exec()
+        if timer_was_active:
+            self.logger.debug(
+                "Suspension de l'acquisition pendant "
+                "l'ouverture des paramètres."
+            )
 
-        if result != QDialog.DialogCode.Accepted:
-            return
+            self.timer.stop()
 
-        settings = dialog.get_settings()
+        try:
+            dialog = SettingsDialog(
+                station_name=self.station_name,
+                pixel_threshold=(
+                    self.motion_detector.pixel_threshold
+                ),
+                required_motion_frames=(
+                    self.required_motion_frames
+                ),
+                no_motion_delay=(
+                    self.no_motion_delay
+                ),
+                pre_event_seconds=(
+                    self.pre_event_seconds
+                ),
+                recordings_directory=str(
+                    self.recordings_directory
+                ),
+                snapshots_enabled=(
+                    self.snapshots_enabled
+                ),
+                camera_index=self.camera_index,
+                camera_width=self.camera_width,
+                camera_height=self.camera_height,
+                camera_fps=self.camera_fps,
+                parent=self,
+            )
 
-        self.apply_general_settings(
-            settings
-        )
+            result = dialog.exec()
+
+            if (
+                result
+                != QDialog.DialogCode.Accepted
+            ):
+                return
+
+            settings = dialog.get_settings()
+
+            self.apply_general_settings(
+                settings
+            )
+
+        finally:
+            if timer_was_active:
+                self.timer.start()
+
+                self.logger.debug(
+                    "Reprise de l'acquisition après "
+                    "fermeture des paramètres."
+                )
 
     def apply_general_settings(self, settings):
         self.motion_detector.pixel_threshold = int(
@@ -1029,28 +1108,96 @@ class MainWindow(QMainWindow):
         self.camera_fps = new_camera_fps
 
  
-        new_recordings_directory = Path(
-            settings["recordings_directory"]
-        ).expanduser()
+        requested_recordings_directory = str(
+            settings.get(
+                "recordings_directory",
+                "",
+            )
+        ).strip()
 
-        if not str(new_recordings_directory).strip():
+        if not requested_recordings_directory:
+            requested_recordings_directory = str(
+                self.recordings_directory
+            )
+
+        try:
+            (
+                new_recordings_directory,
+                directory_was_replaced,
+            ) = prepare_recordings_directory(
+                requested_recordings_directory,
+                logger=self.logger,
+            )
+
+        except OSError as error:
+            self.logger.error(
+                "Impossible d'utiliser le dossier "
+                "d'enregistrement demandé : %s",
+                error,
+            )
+
+            QMessageBox.critical(
+                self,
+                "Dossier d'enregistrement inaccessible",
+                "Le dossier sélectionné ne peut pas être "
+                "utilisé.\n\n"
+                f"{error}\n\n"
+                "L'ancien dossier d'enregistrement est "
+                "conservé.",
+            )
+
             new_recordings_directory = (
                 self.recordings_directory
             )
+
+            directory_was_replaced = False
 
         recordings_directory_changed = (
             new_recordings_directory
             != self.recordings_directory
         )
 
-        self.recordings_directory = (
-            new_recordings_directory
-        )
-
-        self.save_grid_config()
+        if directory_was_replaced:
+            QMessageBox.warning(
+                self,
+                "Dossier d'enregistrement remplacé",
+                "Le dossier demandé n'était pas utilisable "
+                "sur ce système.\n\n"
+                "Open Fish Counter utilisera le dossier "
+                "suivant :\n"
+                f"{new_recordings_directory}",
+            )
 
         if recordings_directory_changed:
-            self.apply_recordings_directory()
+            previous_recordings_directory = (
+                self.recordings_directory
+            )
+
+            self.recordings_directory = (
+                new_recordings_directory
+            )
+
+            directory_applied = (
+                self.apply_recordings_directory()
+            )
+
+            if not directory_applied:
+                self.recordings_directory = (
+                    previous_recordings_directory
+                )
+
+                self.apply_recordings_directory()
+
+                QMessageBox.critical(
+                    self,
+                    "Changement de dossier impossible",
+                    "Le nouveau dossier n'a pas pu être "
+                    "appliqué.\n\n"
+                    "L'ancien dossier reste utilisé :\n"
+                    f"{self.recordings_directory}",
+                )
+
+        self.save_grid_config()
 
         if camera_changed:
             self.restart_camera()
