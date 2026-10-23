@@ -27,3 +27,6 @@ dataset/*
 build/
 dist/
 *.spec~
+
+# Installateurs générés
+packaging/windows/output/
