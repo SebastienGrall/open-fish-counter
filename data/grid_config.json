@@ -3,8 +3,8 @@
         "name": "Station"
     },
     "camera": {
-        "backend": "ic4",
-        "serial": "09620071",
+        "backend": "opencv",
+        "serial": null,
         "index": 0,
         "width": 720,
         "height": 540,
@@ -21,7 +21,7 @@
     },
     "recording": {
         "pre_event_seconds": 1.0,
-        "output_directory": "C:\\Users\\seino\\Videos\\OpenFishCounter",
+        "output_directory": "",
         "snapshots_enabled": false,
         "disk_warning_percent": 90,
         "disk_stop_percent": 95,

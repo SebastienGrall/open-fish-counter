@@ -29,10 +29,16 @@ DEFAULT_CONFIG = {
         "name": "Station",
     },
     "camera": {
-        "index": 1,
+        "backend": "opencv",
+        "serial": None,
+        "index": 0,
         "width": 720,
         "height": 540,
         "fps": 30.0,
+        "exposure_auto": True,
+        "exposure_time": 5000.0,
+        "gain_auto": True,
+        "gain": 0.0,
     },
     "detection": {
         "pixel_threshold": 25,
@@ -41,10 +47,11 @@ DEFAULT_CONFIG = {
     },
     "recording": {
         "pre_event_seconds": 1.0,
-        "output_directory": (
-        get_default_recordings_directory()
-        ),
+        "output_directory": "",
         "snapshots_enabled": False,
+        "disk_warning_percent": 90,
+        "disk_stop_percent": 95,
+        "max_video_duration_minutes": 10,
     },
     "grid": {
         "rows": 8,

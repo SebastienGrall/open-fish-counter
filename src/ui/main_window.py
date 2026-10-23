@@ -27,6 +27,9 @@ from recording.frame_buffer import FrameBuffer
 from recording.video_recorder import VideoRecorder
 from ui.settings_dialog import SettingsDialog
 from config.config_manager import ConfigManager
+from config.config_paths import (
+    prepare_user_config_file,
+)
 from camera.camera_manager import CameraManager
 from utils.path_utils import (
     prepare_recordings_directory,
@@ -37,6 +40,7 @@ from logging_utils.log_manager import (
     setup_logging,
 )
 
+
 PROJECT_ROOT = (
     Path(__file__).resolve()
     .parent
@@ -44,11 +48,6 @@ PROJECT_ROOT = (
     .parent
 )
 
-CONFIG_FILE = (
-    PROJECT_ROOT
-     / "data" 
-     / "grid_config.json"
-)
 
 RECORDINGS_DIRECTORY = (
     PROJECT_ROOT
@@ -68,11 +67,21 @@ class MainWindow(QMainWindow):
 
         self.video_widget = VideoWidget()
 
+        (
+            self.config_file,
+            config_initialization_status,
+        ) = prepare_user_config_file()
+
         self.config_manager = ConfigManager(
-            CONFIG_FILE
+            self.config_file
         )
 
         app_config = self.config_manager.load()
+
+        if config_initialization_status == "new":
+            self.config_manager.save(
+                app_config
+            )
 
         camera_config = app_config["camera"]
         detection_config = app_config["detection"]
@@ -338,6 +347,24 @@ class MainWindow(QMainWindow):
         self.logger = setup_logging(
             self.logs_directory
         )
+
+        self.logger.info(
+            "Configuration utilisateur : %s",
+            self.config_file,
+        )
+
+        if config_initialization_status == "migrated":
+            self.logger.info(
+                "Ancienne configuration copiée vers "
+                "le dossier utilisateur."
+            )
+
+        elif config_initialization_status == "new":
+            self.logger.info(
+                "Aucune ancienne configuration trouvée. "
+                "Une nouvelle configuration utilisateur "
+                "sera créée."
+            )
 
         if self.recordings_directory_was_replaced:
             self.logger.warning(

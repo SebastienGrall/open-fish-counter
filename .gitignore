@@ -23,3 +23,7 @@ dataset/*
  
 # Paquet Debian
 *.deb
+# PyInstaller
+build/
+dist/
+*.spec~
