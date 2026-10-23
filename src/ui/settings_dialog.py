@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QSpinBox,
     QVBoxLayout,
     QWidget,
+    QComboBox,
 )
 from pathlib import Path
 
@@ -26,6 +27,9 @@ class SettingsDialog(QDialog):
         pre_event_seconds,
         recordings_directory,
         snapshots_enabled,
+        camera_backend,
+        camera_serial,
+        ic4_devices,
         camera_index,
         camera_width,
         camera_height,
@@ -82,6 +86,105 @@ class SettingsDialog(QDialog):
 
         camera_layout = QFormLayout(
             camera_group
+        )
+
+        self.camera_backend_combo = QComboBox()
+
+        self.camera_backend_combo.addItem(
+            "Webcam / caméra OpenCV",
+            "opencv",
+        )
+
+        self.camera_backend_combo.addItem(
+            "Caméra The Imaging Source IC4",
+            "ic4",
+        )
+
+        backend_index = (
+            self.camera_backend_combo.findData(
+                str(camera_backend).strip().lower()
+            )
+        )
+
+        if backend_index < 0:
+            backend_index = 0
+
+        self.camera_backend_combo.setCurrentIndex(
+            backend_index
+        )
+
+        camera_layout.addRow(
+            "Type de caméra :",
+            self.camera_backend_combo,
+        )
+
+        self.ic4_camera_combo = QComboBox()
+
+        selected_ic4_index = -1
+        configured_serial_found = False
+
+        for device in ic4_devices:
+            model = str(
+                device.get(
+                    "model",
+                    "Caméra IC4",
+                )
+            )
+
+            serial = str(
+                device.get(
+                    "serial",
+                    "",
+                )
+            ).strip()
+
+            if not serial:
+                continue
+
+            self.ic4_camera_combo.addItem(
+                f"{model} - Série {serial}",
+                serial,
+            )
+
+            if serial == camera_serial:
+                selected_ic4_index = (
+                    self.ic4_camera_combo.count()
+                    - 1
+                )
+
+                configured_serial_found = True
+
+        configured_serial = str(
+            camera_serial or ""
+        ).strip()
+
+        if (
+            configured_serial
+            and not configured_serial_found
+        ):
+            self.ic4_camera_combo.addItem(
+                f"Série {configured_serial} "
+                "(actuellement indisponible)",
+                configured_serial,
+            )
+
+            selected_ic4_index = (
+                self.ic4_camera_combo.count()
+                - 1
+            )
+
+        if selected_ic4_index >= 0:
+            self.ic4_camera_combo.setCurrentIndex(
+                selected_ic4_index
+            )
+
+        camera_layout.addRow(
+            "Caméra IC4 :",
+            self.ic4_camera_combo,
+        )
+
+        self.camera_backend_combo.currentIndexChanged.connect(
+            self.update_camera_fields
         )
 
         self.camera_index_spinbox = QSpinBox()
@@ -332,6 +435,8 @@ class SettingsDialog(QDialog):
 
         main_layout.addWidget(button_box)
 
+        self.update_camera_fields()
+
     def get_settings(self):
         return {
             "station_name": (
@@ -354,6 +459,17 @@ class SettingsDialog(QDialog):
             ),
             "snapshots_enabled": (
                 self.snapshots_enabled_checkbox.isChecked()
+            ),
+            "camera_backend": (
+                self.camera_backend_combo.currentData()
+            ),
+            "camera_serial": (
+                self.ic4_camera_combo.currentData()
+                if (
+                    self.camera_backend_combo.currentData()
+                    == "ic4"
+                )
+                else None
             ),
             "camera_index": (
                 self.camera_index_spinbox.value()
@@ -395,4 +511,41 @@ class SettingsDialog(QDialog):
         self.recordings_directory_edit.setText(
             selected_directory
         )
+
+    def update_camera_fields(self):
+        camera_backend = (
+            self.camera_backend_combo.currentData()
+        )
+
+        using_ic4 = (
+            camera_backend == "ic4"
+        )
+
+        self.camera_index_spinbox.setEnabled(
+            not using_ic4
+        )
+
+        self.ic4_camera_combo.setEnabled(
+            using_ic4
+        )
+
+        if using_ic4:
+            self.camera_index_spinbox.setToolTip(
+                "L'index est ignoré avec une caméra IC4."
+            )
+
+            self.ic4_camera_combo.setToolTip(
+                "Les caméras IC4 sont distinguées par "
+                "leur numéro de série."
+            )
+
+        else:
+            self.camera_index_spinbox.setToolTip(
+                "Index OpenCV de la webcam."
+            )
+
+            self.ic4_camera_combo.setToolTip(
+                "Ce champ est utilisé uniquement avec "
+                "le backend IC4."
+            )
     

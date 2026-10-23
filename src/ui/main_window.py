@@ -157,6 +157,36 @@ class MainWindow(QMainWindow):
             )
         )
 
+        self.camera_backend = str(
+            camera_config.get(
+                "backend",
+                "opencv",
+            )
+        ).strip().lower()
+
+        if self.camera_backend not in (
+            "opencv",
+            "ic4",
+        ):
+            self.camera_backend = "opencv"
+
+        configured_camera_serial = (
+            camera_config.get(
+                "serial",
+                None,
+            )
+        )
+
+        if configured_camera_serial is None:
+            self.camera_serial = None
+        else:
+            self.camera_serial = str(
+                configured_camera_serial
+            ).strip()
+
+            if not self.camera_serial:
+                self.camera_serial = None
+
         self.camera_width = int(
             camera_config.get(
                 "width",
@@ -289,12 +319,20 @@ class MainWindow(QMainWindow):
             requested_width=self.camera_width,
             requested_height=self.camera_height,
             requested_fps=self.camera_fps,
-            camera_backend="ic4",
-            camera_serial="09620071",
+            camera_backend=self.camera_backend,
+            camera_serial=self.camera_serial,
         )
 
         camera_opened = (
             self.camera_manager.open()
+        )
+
+        self.logger.info(
+            "Caméra configurée | backend=%s | "
+            "index=%d | série=%s",
+            self.camera_backend,
+            self.camera_index,
+            self.camera_serial or "aucune",
         )
 
         if not camera_opened:
@@ -810,6 +848,8 @@ class MainWindow(QMainWindow):
                 "name": self.station_name,
             },
             "camera": {
+                "backend": self.camera_backend,
+                "serial": self.camera_serial,
                 "index": self.camera_index,
                 "width": self.camera_width,
                 "height": self.camera_height,
@@ -980,6 +1020,11 @@ class MainWindow(QMainWindow):
     def open_settings_dialog(self):
         timer_was_active = self.timer.isActive()
 
+        ic4_devices = (
+            self.camera_manager
+            .get_available_ic4_devices()
+        )
+
         if timer_was_active:
             self.logger.debug(
                 "Suspension de l'acquisition pendant "
@@ -1009,6 +1054,9 @@ class MainWindow(QMainWindow):
                 snapshots_enabled=(
                     self.snapshots_enabled
                 ),
+                camera_backend=self.camera_backend,
+                camera_serial=self.camera_serial,
+                ic4_devices=ic4_devices,
                 camera_index=self.camera_index,
                 camera_width=self.camera_width,
                 camera_height=self.camera_height,
@@ -1076,6 +1124,33 @@ class MainWindow(QMainWindow):
 
         self.station_name = new_station_name
 
+        new_camera_backend = str(
+            settings.get(
+                "camera_backend",
+                "opencv",
+            )
+        ).strip().lower()
+
+        if new_camera_backend not in (
+            "opencv",
+            "ic4",
+        ):
+            new_camera_backend = "opencv"
+
+        new_camera_serial = settings.get(
+            "camera_serial"
+        )
+
+        if new_camera_serial is not None:
+            new_camera_serial = str(
+                new_camera_serial
+            ).strip()
+
+            if not new_camera_serial:
+                new_camera_serial = None
+
+        if new_camera_backend == "opencv":
+            new_camera_serial = None
         
         new_camera_index = int(
             settings["camera_index"]
@@ -1094,18 +1169,45 @@ class MainWindow(QMainWindow):
         )
 
         camera_changed = (
-            new_camera_index != self.camera_index
-            or new_camera_width != self.camera_width
-            or new_camera_height != self.camera_height
-            or new_camera_fps != self.camera_fps
+            new_camera_backend
+            != self.camera_backend
+            or new_camera_serial
+            != self.camera_serial
+            or new_camera_index
+            != self.camera_index
+            or new_camera_width
+            != self.camera_width
+            or new_camera_height
+            != self.camera_height
+            or new_camera_fps
+            != self.camera_fps
         )
 
 
 
-        self.camera_index = new_camera_index
-        self.camera_width = new_camera_width
-        self.camera_height = new_camera_height
-        self.camera_fps = new_camera_fps
+        self.camera_backend = (
+            new_camera_backend
+        )
+
+        self.camera_serial = (
+            new_camera_serial
+        )
+
+        self.camera_index = (
+            new_camera_index
+        )
+
+        self.camera_width = (
+            new_camera_width
+        )
+
+        self.camera_height = (
+            new_camera_height
+        )
+
+        self.camera_fps = (
+            new_camera_fps
+        )
 
  
         requested_recordings_directory = str(
@@ -1262,6 +1364,8 @@ class MainWindow(QMainWindow):
                 requested_width=self.camera_width,
                 requested_height=self.camera_height,
                 requested_fps=self.camera_fps,
+                camera_backend=self.camera_backend,
+                camera_serial=self.camera_serial,
             )
         )
 

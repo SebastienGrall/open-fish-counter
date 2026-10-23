@@ -1,9 +1,11 @@
 {
     "station": {
-        "name": "Station_TEST"
+        "name": "Station"
     },
     "camera": {
-        "index": 1,
+        "backend": "ic4",
+        "serial": "09620071",
+        "index": 0,
         "width": 720,
         "height": 540,
         "fps": 30.0
@@ -15,7 +17,7 @@
     },
     "recording": {
         "pre_event_seconds": 1.0,
-        "output_directory": "C:\\Users\\seino\\Videos\\OpenFishCounter",
+        "output_directory": "/home/videocomptage/Vidéos/OpenFishCounter",
         "snapshots_enabled": false
     },
     "grid": {
@@ -104,7 +106,7 @@
             "threshold": 10
         },
         "20": {
-            "enabled": false,
+            "enabled": true,
             "threshold": 10
         },
         "21": {
@@ -277,7 +279,7 @@
         },
         "63": {
             "enabled": true,
-            "threshold": 100
+            "threshold": 10
         }
     }
 }

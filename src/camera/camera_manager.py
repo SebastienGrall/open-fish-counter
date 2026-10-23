@@ -137,11 +137,26 @@ class CameraManager:
             self.requested_fps = max(1.0, float(requested_fps))
 
         if camera_backend is not None:
-            self.camera_backend = self._normalize_backend(camera_backend)
+            self.camera_backend = (
+                self._normalize_backend(
+                    camera_backend
+                )
+            )
+
+            if (
+                self.camera_backend
+                == self.BACKEND_OPENCV
+            ):
+                self.camera_serial = None
 
         if camera_serial is not None:
-            serial = str(camera_serial).strip()
-            self.camera_serial = serial or None
+            serial = str(
+                camera_serial
+            ).strip()
+
+            self.camera_serial = (
+                serial or None
+            )
 
     def close(self):
         """
@@ -246,6 +261,38 @@ class CameraManager:
             "height": self.actual_height,
             "fps": self.actual_fps,
         }
+
+    def get_available_ic4_devices(self):
+        """
+        Retourne les caméras IC4 disponibles, dédoublonnées
+        par numéro de série.
+
+        Les objets internes IC4 ne sont pas transmis à
+        l'interface graphique.
+        """
+        if not IC4_AVAILABLE:
+            return []
+
+        try:
+            self._initialize_ic4_library()
+
+            devices = self._list_unique_ic4_devices()
+
+            return [
+                {
+                    "model": device["model"],
+                    "serial": device["serial"],
+                }
+                for device in devices
+            ]
+
+        except Exception as error:
+            self.logger.warning(
+                "Impossible d'énumérer les caméras IC4 : %s",
+                self._format_error(error),
+            )
+
+            return []
 
     def try_reconnect(self):
         if self.is_open:
