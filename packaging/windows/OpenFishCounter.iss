@@ -3,6 +3,7 @@
 #define MyAppPublisher "Sebastien Grall"
 #define MyAppExeName "OpenFishCounter.exe"
 #define MyAppSourceDir "..\..\dist\OpenFishCounter"
+#define MyAppIcon "..\..\assets\icons\open-fish-counter.ico"
 
 [Setup]
 AppId={{fca1cb84-ec76-5e0c-b73b-d370621b80b3}}
@@ -12,6 +13,8 @@ AppVerName={#MyAppName} {#MyAppVersion}
 AppPublisher={#MyAppPublisher}
 DefaultDirName={autopf}\OpenFishCounter
 DefaultGroupName={#MyAppName}
+SetupIconFile={#MyAppIcon}
+UninstallDisplayIcon={app}\{#MyAppExeName}
 DisableProgramGroupPage=yes
 OutputDir=output
 OutputBaseFilename=OpenFishCounter-Setup-{#MyAppVersion}-x64

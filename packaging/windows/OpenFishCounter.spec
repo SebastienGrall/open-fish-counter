@@ -23,11 +23,31 @@ MAIN_SCRIPT = (
     / "main.py"
 )
 
+APP_ICON = (
+    PROJECT_ROOT
+    / "assets"
+    / "icons"
+    / "open-fish-counter.ico"
+)
+
+APP_ICON_PNG = (
+    PROJECT_ROOT
+    / "assets"
+    / "icons"
+    / "open-fish-counter-512.png"
+)
+
 
 datas = []
 binaries = []
 hiddenimports = []
 
+datas.append(
+    (
+        str(APP_ICON_PNG),
+        "assets/icons",
+    )
+)
 
 imagingcontrol4_data = collect_all(
     "imagingcontrol4"
@@ -78,6 +98,7 @@ exe = EXE(
     strip=False,
     upx=True,
     console=False,
+    icon=str(APP_ICON),
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
