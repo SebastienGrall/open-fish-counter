@@ -13,7 +13,9 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
     QComboBox,
+    QScrollArea,
 )
+from PySide6.QtCore import Qt
 from pathlib import Path
 
 
@@ -49,9 +51,65 @@ class SettingsDialog(QDialog):
             "Paramètres - Open Fish Counter"
         )
 
-        self.setMinimumWidth(400)
+        self.setMinimumSize(
+            420,
+            420,
+        )
 
-        main_layout = QVBoxLayout(self)
+        self.resize(
+            620,
+            650,
+        )
+
+        # Layout principal de la fenêtre.
+        # Il contient la zone déroulante et les boutons fixes.
+        dialog_layout = QVBoxLayout(self)
+
+        # Zone de défilement contenant les paramètres.
+        self.settings_scroll_area = QScrollArea()
+
+        self.settings_scroll_area.setWidgetResizable(
+            True
+        )
+
+        self.settings_scroll_area.setFrameShape(
+            QScrollArea.Shape.NoFrame
+        )
+
+        self.settings_scroll_area.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+
+        self.settings_scroll_area.setVerticalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded
+        )
+
+        # Widget réellement placé dans la zone déroulante.
+        settings_content_widget = QWidget()
+
+        main_layout = QVBoxLayout(
+            settings_content_widget
+        )
+
+        main_layout.setContentsMargins(
+            6,
+            6,
+            6,
+            6,
+        )
+
+        main_layout.setSpacing(
+            10
+        )
+
+        self.settings_scroll_area.setWidget(
+            settings_content_widget
+        )
+
+        dialog_layout.addWidget(
+            self.settings_scroll_area,
+            1,
+        )
 
         station_group = QGroupBox(
             "Station"
@@ -671,7 +729,11 @@ class SettingsDialog(QDialog):
             self.reject
         )
 
-        main_layout.addWidget(button_box)
+        # Les boutons restent visibles même lorsque les
+        # paramètres sont parcourus avec la barre de défilement.
+        dialog_layout.addWidget(
+            button_box
+        )
 
         self.update_camera_fields()
 
