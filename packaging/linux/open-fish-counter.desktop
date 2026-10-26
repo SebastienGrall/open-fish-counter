@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Open Fish Counter
+Comment=Acquisition et videocomptage avec cameras OpenCV et IC4
+Exec=open-fish-counter
+Icon=open-fish-counter
+Terminal=false
+Categories=Science;
+StartupNotify=true
+StartupWMClass=OpenFishCounter

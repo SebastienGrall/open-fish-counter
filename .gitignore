@@ -20,6 +20,15 @@ dataset/*
 *.jpg
 *.jpeg
 *.png
+
+# Conserver les ressources graphiques de l'application
+!assets/
+!assets/icons/
+!assets/icons/*.png
+!assets/icons/*.jpg
+!assets/icons/*.jpeg
+!assets/icons/*.svg
+!assets/icons/*.ico
  
 # Paquet Debian
 *.deb
@@ -30,3 +39,7 @@ dist/
 
 # Installateurs générés
 packaging/windows/output/
+packaging/linux/output/
+
+# Sauvegardes locales
+*.backup
