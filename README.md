@@ -1,5 +1,15 @@
 # Open Fish Counter
 
+# Open Fish Counter
+
+<p align="center">
+  <img
+    src="assets/icons/open-fish-counter-256.png"
+    alt="Logo Open Fish Counter"
+    width="180"
+  >
+</p>
+
 Open Fish Counter est une application de vidéocomptage destinée à surveiller automatiquement une zone filmée, détecter les mouvements et enregistrer les événements vidéo associés.
 
 Le logiciel fonctionne sous Windows et Debian avec :
