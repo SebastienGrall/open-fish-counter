@@ -43,3 +43,5 @@ packaging/linux/output/
 
 # Sauvegardes locales
 *.backup
+
+mail.env
