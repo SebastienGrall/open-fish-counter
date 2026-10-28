@@ -1,14 +1,13 @@
-# Open Fish Counter
-
-# Open Fish Counter
-
-<p align="center">
+<h1>
+  Open Fish Counter
   <img
     src="assets/icons/open-fish-counter-256.png"
     alt="Logo Open Fish Counter"
-    width="180"
+    width="48"
+    align="right"
   >
-</p>
+</h1>
+
 
 Open Fish Counter est une application de vidéocomptage destinée à surveiller automatiquement une zone filmée, détecter les mouvements et enregistrer les événements vidéo associés.
 
