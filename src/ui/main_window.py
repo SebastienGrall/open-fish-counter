@@ -752,7 +752,7 @@ class MainWindow(QMainWindow):
         self.event_started_this_frame = False
 
         self.frame_buffer.add_frame(frame)
-
+               
         self.buffer_status_label.setText(
             f"Buffer : "
             f"{self.frame_buffer.get_frame_count()} images, "
