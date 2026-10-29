@@ -702,6 +702,9 @@ class MainWindow(QMainWindow):
         # Premier contrôle immédiat sans attendre dix secondes.
         self.check_disk_usage()
 
+        # Ouvre la fenêtre en maximisé
+        self.showMaximized()
+
     def update_frame(self):
         if not self.camera_manager.is_open:
             reconnected = (

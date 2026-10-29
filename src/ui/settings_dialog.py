@@ -52,13 +52,13 @@ class SettingsDialog(QDialog):
         )
 
         self.setMinimumSize(
-            420,
+            600,
             420,
         )
 
         self.resize(
-            620,
-            650,
+            1000,
+            550,
         )
 
         # Layout principal de la fenêtre.
@@ -77,7 +77,7 @@ class SettingsDialog(QDialog):
         )
 
         self.settings_scroll_area.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded
         )
 
         self.settings_scroll_area.setVerticalScrollBarPolicy(
@@ -87,7 +87,7 @@ class SettingsDialog(QDialog):
         # Widget réellement placé dans la zone déroulante.
         settings_content_widget = QWidget()
 
-        main_layout = QVBoxLayout(
+        main_layout = QHBoxLayout(
             settings_content_widget
         )
 
@@ -101,6 +101,12 @@ class SettingsDialog(QDialog):
         main_layout.setSpacing(
             10
         )
+
+        left_column = QVBoxLayout()
+        right_column = QVBoxLayout()
+
+        main_layout.addLayout(left_column, 1)
+        main_layout.addLayout(right_column, 1)
 
         self.settings_scroll_area.setWidget(
             settings_content_widget
@@ -141,7 +147,7 @@ class SettingsDialog(QDialog):
             self.station_name_edit,
         )
 
-        main_layout.addWidget(
+        left_column.addWidget(
             station_group
         )
 
@@ -300,7 +306,7 @@ class SettingsDialog(QDialog):
             self.camera_fps_spinbox,
         )
 
-        main_layout.addWidget(camera_group)
+        left_column.addWidget(camera_group)
 
         # Réglages avancés propres aux caméras IC4.
         self.ic4_settings_group = QGroupBox(
@@ -421,9 +427,11 @@ class SettingsDialog(QDialog):
             self.update_ic4_manual_fields
         )
 
-        main_layout.addWidget(
+        left_column.addWidget(
             self.ic4_settings_group
         )
+
+        left_column.addStretch()
 
         # Paramètres de détection
         detection_group = QGroupBox(
@@ -501,7 +509,7 @@ class SettingsDialog(QDialog):
             self.no_motion_delay_spinbox,
         )
 
-        main_layout.addWidget(detection_group)
+        right_column.addWidget(detection_group)
 
         # Paramètres d'enregistrement
         recording_group = QGroupBox(
@@ -713,7 +721,8 @@ class SettingsDialog(QDialog):
             directory_widget,
         )
 
-        main_layout.addWidget(recording_group)
+        right_column.addWidget(recording_group)
+        right_column.addStretch()
 
         # Boutons
         button_box = QDialogButtonBox(
