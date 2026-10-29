@@ -140,7 +140,7 @@ class VideoRecorder:
         )
 
         event_timestamp = self.video_start_time.strftime(
-            "%Y-%m-%d_%H-%M-%S-%f"
+            "%Y%m%d_%H%M%S_%f"
         )[:-3]
 
         self.event_id = (
@@ -148,7 +148,7 @@ class VideoRecorder:
         )
         self.event_base_name = (
             f"{self.safe_station_name}_"
-            f"{self.video_start_time.strftime('%H-%M-%S-%f')[:-3]}"
+            f"{self.video_start_time.strftime('%Y%m%d_%H%M%S')}"
         )
 
         station_directory = (
