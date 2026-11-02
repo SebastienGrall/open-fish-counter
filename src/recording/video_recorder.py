@@ -84,10 +84,8 @@ class VideoRecorder:
         self.event_detection_time = None
         self.event_id = None
         self.event_base_name = None
-        self.event_manifest_path = None
         self.videos_directory = None
         self.event_total_frame_count = 0
-        self.event_part_paths = []
         self.event_max_video_duration_seconds = None
         self.event_max_frames_per_part = None
 
@@ -171,10 +169,6 @@ class VideoRecorder:
             exist_ok=True,
         )
 
-        self.event_manifest_path = (
-            self.videos_directory
-            / f"{self.event_base_name}_event.json"
-        )
 
         # La durée est figée pour tout l'événement.
         self.event_max_video_duration_seconds = (
@@ -189,7 +183,6 @@ class VideoRecorder:
         )
 
         self.event_total_frame_count = 0
-        self.event_part_paths = []
         self.part_number = 0
 
         if not self._open_next_part():
@@ -246,32 +239,12 @@ class VideoRecorder:
         last_output_path = self.output_path
 
         self._close_current_part(
-            continues_in_next=False,
             part_end_time=event_end_time,
         )
 
-        part_count = len(self.event_part_paths)
-
-        try:
-            self._finalize_part_metadata(
-                part_count=part_count,
-            )
-            self._write_event_manifest(
-                event_end_time=event_end_time,
-            )
-        except OSError as error:
-            self.logger.error(
-                "Impossible de finaliser les métadonnées "
-                "de l'événement %s : %s",
-                self.event_id,
-                error,
-            )
-
         self.logger.info(
-            "Événement terminé | event_id=%s | parties=%d | "
-            "images=%d",
+            "Événement terminé | event_id=%s | images=%d",
             self.event_id,
-            part_count,
             self.event_total_frame_count,
         )
 
@@ -321,10 +294,7 @@ class VideoRecorder:
             return False
 
         self.writer = writer
-        self.event_part_paths.append(
-            self.output_path
-        )
-
+        
         self.logger.info(
             "Partie vidéo démarrée | event_id=%s | "
             "partie=%d | fichier=%s",
@@ -347,7 +317,6 @@ class VideoRecorder:
         )
 
         self._close_current_part(
-            continues_in_next=True,
             part_end_time=next_part_start_time,
         )
 
@@ -355,7 +324,6 @@ class VideoRecorder:
 
     def _close_current_part(
         self,
-        continues_in_next,
         part_end_time,
     ):
         if self.writer is None:
@@ -375,8 +343,6 @@ class VideoRecorder:
             part_start_time=part_start_time,
             part_end_time=part_end_time,
             frame_count=part_frame_count,
-            continues_in_next=continues_in_next,
-            part_count=None,
         )
 
         self.logger.info(
@@ -399,8 +365,6 @@ class VideoRecorder:
         part_start_time,
         part_end_time,
         frame_count,
-        continues_in_next,
-        part_count,
     ):
         frame_width, frame_height = self.frame_size
 
@@ -411,9 +375,6 @@ class VideoRecorder:
             "station_name": self.station_name,
             "video_file": output_path.name,
             "part_number": part_number,
-            "part_count": part_count,
-            "continued_from_previous": part_number > 1,
-            "continues_in_next": bool(continues_in_next),
             "event_start_time": self._isoformat(
                 self.video_start_time
             ),
@@ -437,81 +398,7 @@ class VideoRecorder:
             metadata,
         )
 
-    def _finalize_part_metadata(self, part_count):
-        for index, video_path in enumerate(
-            self.event_part_paths,
-            start=1,
-        ):
-            metadata_path = video_path.with_suffix(
-                ".json"
-            )
-
-            with metadata_path.open(
-                "r",
-                encoding="utf-8",
-            ) as metadata_file:
-                metadata = json.load(metadata_file)
-
-            metadata["part_count"] = part_count
-            metadata["continues_in_next"] = (
-                index < part_count
-            )
-
-            self._write_json_atomic(
-                metadata_path,
-                metadata,
-            )
-
-    def _write_event_manifest(self, event_end_time):
-        parts = []
-
-        for index, video_path in enumerate(
-            self.event_part_paths,
-            start=1,
-        ):
-            parts.append({
-                "part_number": index,
-                "video_file": video_path.name,
-                "metadata_file": (
-                    video_path.with_suffix(".json").name
-                ),
-            })
-
-        manifest = {
-            "schema_version": self.METADATA_SCHEMA_VERSION,
-            "record_type": "event_manifest",
-            "event_id": self.event_id,
-            "station_name": self.station_name,
-            "event_start_time": self._isoformat(
-                self.video_start_time
-            ),
-            "event_detection_time": self._isoformat(
-                self.event_detection_time
-            ),
-            "event_end_time": self._isoformat(
-                event_end_time
-            ),
-            "recording_fps": round(self.fps, 3),
-            "total_frame_count": (
-                self.event_total_frame_count
-            ),
-            "part_count": len(self.event_part_paths),
-            "max_part_duration_seconds": (
-                self.event_max_video_duration_seconds
-            ),
-            "parts": parts,
-        }
-
-        self._write_json_atomic(
-            self.event_manifest_path,
-            manifest,
-        )
-
-        self.logger.info(
-            "Manifeste événement sauvegardé : %s",
-            self.event_manifest_path,
-        )
-
+   
     @staticmethod
     def _write_json_atomic(output_path, data):
         temporary_path = output_path.with_suffix(
@@ -547,16 +434,13 @@ class VideoRecorder:
         self.frame_count = 0
         self.part_start_time = None
         self.part_number = 0
-
         self.station_name = "Station"
         self.safe_station_name = "Station"
         self.video_start_time = None
         self.event_detection_time = None
         self.event_id = None
         self.event_base_name = None
-        self.event_manifest_path = None
         self.videos_directory = None
         self.event_total_frame_count = 0
-        self.event_part_paths = []
         self.event_max_video_duration_seconds = None
         self.event_max_frames_per_part = None
