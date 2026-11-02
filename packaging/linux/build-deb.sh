@@ -6,11 +6,41 @@ PROJECT_ROOT="$(cd -- "${SCRIPT_DIR}/../.." && pwd)"
 cd "${PROJECT_ROOT}"
 
 PACKAGE_NAME="open-fish-counter"
-APP_VERSION="1.0.0~alpha1"
+
+APP_VERSION="$(
+    python3 -c '
+import importlib.util
+from pathlib import Path
+
+version_file = Path("src/version.py")
+spec = importlib.util.spec_from_file_location(
+    "open_fish_counter_version",
+    version_file,
+)
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+print(module.APP_VERSION)
+'
+)"
+
+if [[ -z "${APP_VERSION}" ]]; then
+    echo "Erreur: APP_VERSION est vide dans src/version.py." >&2
+    exit 1
+fi
+
+DEBIAN_VERSION="${APP_VERSION/-alpha/~alpha}"
+DEBIAN_VERSION="${DEBIAN_VERSION/-beta/~beta}"
+DEBIAN_VERSION="${DEBIAN_VERSION/-rc/~rc}"
+
 ARCHITECTURE="amd64"
-PACKAGE_ROOT="${PROJECT_ROOT}/build/deb/${PACKAGE_NAME}_${APP_VERSION}_${ARCHITECTURE}"
+
+PACKAGE_ROOT="${PROJECT_ROOT}/build/deb/${PACKAGE_NAME}_${DEBIAN_VERSION}_${ARCHITECTURE}"
 OUTPUT_DIR="${PROJECT_ROOT}/packaging/linux/output"
 PYINSTALLER_DIST="${PROJECT_ROOT}/dist/OpenFishCounter"
+
+echo "Application : ${APP_VERSION}"
+echo "Version Debian : ${DEBIAN_VERSION}"
+echo "Architecture : ${ARCHITECTURE}"
 
 if [[ ! -f "assets/icons/open-fish-counter.svg" ]]; then
     echo "Erreur: assets/icons/open-fish-counter.svg est introuvable." >&2

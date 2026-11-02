@@ -1,5 +1,5 @@
 #define MyAppName "Open Fish Counter"
-#define MyAppVersion "1.0.0-alpha"
+#define MyAppVersion "1.0.0"
 #define MyAppPublisher "Sebastien Grall"
 #define MyAppExeName "OpenFishCounter.exe"
 #define MyAppSourceDir "..\..\dist\OpenFishCounter"

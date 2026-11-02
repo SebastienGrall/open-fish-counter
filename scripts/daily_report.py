@@ -15,8 +15,16 @@ from pathlib import Path
 from typing import Any
 
 
-APP_NAME = "Open Fish Counter"
-APP_VERSION = "1.0.0-alpha"
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+SRC_DIRECTORY = PROJECT_ROOT / "src"
+
+if str(SRC_DIRECTORY) not in sys.path:
+    sys.path.insert(
+        0,
+        str(SRC_DIRECTORY),
+    )
+
+from version import APP_NAME, APP_VERSION
 
 SMTP_HOST = "smtp.gmail.com"
 SMTP_PORT = 587
