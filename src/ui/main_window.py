@@ -216,6 +216,21 @@ class MainWindow(QMainWindow):
             )
         )
 
+        self.camera_settings_status_label = QLabel(
+            "Caméra : paramètres inconnus"
+        )
+
+        self.camera_settings_status_label.setWordWrap(
+            True
+        )
+
+        self.camera_settings_status_label.setToolTip(
+            "Compare les paramètres demandés avec les valeurs "
+            "réellement appliquées par la caméra."
+        )
+
+        self.camera_status_initialized = False
+
         self.camera_exposure_auto = bool(
             camera_config.get(
                 "exposure_auto",
@@ -449,6 +464,8 @@ class MainWindow(QMainWindow):
             self.camera_manager.open()
         )
 
+        self.update_camera_settings_status()
+
         self.logger.info(
             "Caméra configurée | backend=%s | "
             "index=%d | série=%s",
@@ -627,6 +644,10 @@ class MainWindow(QMainWindow):
             self.display_mode_combo
         )
 
+        side_layout.addWidget(
+            self.camera_settings_status_label
+        )
+
         side_layout.addSpacing(20)
 
         side_layout.addWidget(self.cell_label)
@@ -721,6 +742,7 @@ class MainWindow(QMainWindow):
             # La caméra vient de revenir.
             self.motion_detector.reset()
             self.frame_buffer.clear()
+            self.camera_status_initialized = False
 
             self.event_active = False
             self.motion_frame_count = 0
@@ -745,6 +767,9 @@ class MainWindow(QMainWindow):
             self.motion_frame_count = 0
             self.last_motion_time = None
 
+            self.camera_status_initialized = False
+            self.update_camera_settings_status()
+
             self.video_widget.set_camera_message(
                 "Connexion caméra perdue\n"
                 "Tentative de reconnexion en cours..."
@@ -761,6 +786,10 @@ class MainWindow(QMainWindow):
             f"{self.frame_buffer.get_frame_count()} images, "
             f"{self.frame_buffer.get_duration():.2f} s"
         )
+
+        if not self.camera_status_initialized:
+            self.update_camera_settings_status()
+            self.camera_status_initialized = True
 
         motion_levels = (
             self.motion_detector.process_frame(
@@ -1753,6 +1782,8 @@ class MainWindow(QMainWindow):
                     )
         )
 
+        self.update_camera_settings_status()
+
         if camera_opened:
             actual_settings = (
                 self.camera_manager
@@ -2308,4 +2339,96 @@ class MainWindow(QMainWindow):
 
             self.stop_recording_button.setEnabled(
                 False
+            )
+
+    def update_camera_settings_status(self):
+        if not self.camera_manager.is_open:
+            self.camera_settings_status_label.setText(
+                "Caméra déconnectée"
+            )
+
+            self.camera_settings_status_label.setStyleSheet(
+                "color: #c62828;"
+            )
+
+            return
+
+        actual_settings = (
+            self.camera_manager.get_actual_settings()
+        )
+
+        actual_width = int(
+            actual_settings.get("width", 0)
+        )
+
+        actual_height = int(
+            actual_settings.get("height", 0)
+        )
+
+        actual_fps = float(
+            actual_settings.get("fps", 0.0)
+        )
+
+        requested_width = int(
+            self.camera_manager.requested_width
+        )
+
+        requested_height = int(
+            self.camera_manager.requested_height
+        )
+
+        requested_fps = float(
+            self.camera_manager.requested_fps
+        )
+
+        resolution_matches = (
+            actual_width == requested_width
+            and actual_height == requested_height
+        )
+
+        fps_matches = (
+            actual_fps <= 0
+            or abs(
+                actual_fps - requested_fps
+            ) <= 0.5
+        )
+
+        if actual_width <= 0 or actual_height <= 0:
+            self.camera_settings_status_label.setText(
+                "Caméra ouverte\n"
+                "Résolution réelle en attente..."
+            )
+
+            self.camera_settings_status_label.setStyleSheet(
+                "color: #616161;"
+            )
+
+            return
+
+        self.camera_settings_status_label.setText(
+            f"Demandé : "
+            f"{requested_width} × {requested_height} px"
+            f" à {requested_fps:.1f} FPS\n"
+            f"Obtenu : "
+            f"{actual_width} × {actual_height} px"
+            f" à {actual_fps:.1f} FPS"
+        )
+
+        if resolution_matches and fps_matches:
+            self.camera_settings_status_label.setStyleSheet(
+                "color: #2e7d32;"
+            )
+
+            self.camera_settings_status_label.setToolTip(
+                "Les paramètres demandés ont été appliqués."
+            )
+
+        else:
+            self.camera_settings_status_label.setStyleSheet(
+                "color: #ef6c00;"
+            )
+
+            self.camera_settings_status_label.setToolTip(
+                "La caméra ou son pilote a ajusté au moins "
+                "un des paramètres demandés."
             )

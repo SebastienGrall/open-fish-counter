@@ -63,7 +63,7 @@ class SettingsDialog(QDialog):
 
         self.resize(
             1000,
-            550,
+            600,
         )
 
         self.camera_capabilities = (
