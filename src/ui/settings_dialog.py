@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QWidget,
     QComboBox,
     QScrollArea,
+    QLabel,
 )
 from PySide6.QtCore import Qt
 from pathlib import Path
@@ -39,10 +40,14 @@ class SettingsDialog(QDialog):
         camera_width,
         camera_height,
         camera_fps,
+        camera_actual_width,
+        camera_actual_height,
+        camera_actual_fps,
         camera_exposure_auto,
         camera_exposure_time,
         camera_gain_auto,
         camera_gain,
+        camera_capabilities=None,
         parent=None,
     ):
         super().__init__(parent)
@@ -59,6 +64,10 @@ class SettingsDialog(QDialog):
         self.resize(
             1000,
             550,
+        )
+
+        self.camera_capabilities = (
+            camera_capabilities or {}
         )
 
         # Layout principal de la fenêtre.
@@ -304,6 +313,34 @@ class SettingsDialog(QDialog):
         camera_layout.addRow(
             "Fréquence demandée :",
             self.camera_fps_spinbox,
+        )
+
+        self.camera_actual_settings_label = QLabel()
+
+        self.camera_actual_settings_label.setWordWrap(
+            True
+        )
+
+        if (
+            camera_actual_width > 0
+            and camera_actual_height > 0
+        ):
+            self.camera_actual_settings_label.setText(
+                f"Résolution actuellement obtenue : "
+                f"{camera_actual_width} × "
+                f"{camera_actual_height} px\n"
+                f"Fréquence actuellement obtenue : "
+                f"{camera_actual_fps:.1f} FPS"
+            )
+        else:
+            self.camera_actual_settings_label.setText(
+                "Les valeurs réelles seront disponibles "
+                "après l'ouverture de la caméra."
+            )
+
+        camera_layout.addRow(
+            "Valeurs appliquées :",
+            self.camera_actual_settings_label,
         )
 
         left_column.addWidget(camera_group)
@@ -889,6 +926,102 @@ class SettingsDialog(QDialog):
             selected_directory
         )
 
+    def apply_ic4_capabilities(self):
+        capabilities = self.camera_capabilities
+
+        if not capabilities.get(
+            "resolution_constraints_available",
+            False,
+        ):
+            return
+
+        width = capabilities.get("width")
+        height = capabilities.get("height")
+        fps = capabilities.get("fps")
+
+        if width:
+            width_minimum = int(
+                width["minimum"]
+            )
+            width_maximum = int(
+                width["maximum"]
+            )
+            width_increment = max(
+                1,
+                int(
+                    width.get(
+                        "increment",
+                        1,
+                    )
+                    or 1
+                ),
+            )
+
+            self.camera_width_spinbox.setRange(
+                width_minimum,
+                width_maximum,
+            )
+
+            self.camera_width_spinbox.setSingleStep(
+                width_increment
+            )
+
+        if height:
+            height_minimum = int(
+                height["minimum"]
+            )
+            height_maximum = int(
+                height["maximum"]
+            )
+            height_increment = max(
+                1,
+                int(
+                    height.get(
+                        "increment",
+                        1,
+                    )
+                    or 1
+                ),
+            )
+
+            self.camera_height_spinbox.setRange(
+                height_minimum,
+                height_maximum,
+            )
+
+            self.camera_height_spinbox.setSingleStep(
+                height_increment
+            )
+
+        if fps:
+            fps_minimum = max(
+                0.1,
+                float(fps["minimum"]),
+            )
+            fps_maximum = max(
+                fps_minimum,
+                float(fps["maximum"]),
+            )
+            fps_increment = max(
+                0.1,
+                float(
+                    fps.get(
+                        "increment",
+                        0.1,
+                    )
+                    or 0.1
+                ),
+            )
+
+            self.camera_fps_spinbox.setRange(
+                fps_minimum,
+                fps_maximum,
+            )
+
+            self.camera_fps_spinbox.setSingleStep(
+                fps_increment
+            )
+
     def update_camera_fields(self):
         camera_backend = (
             self.camera_backend_combo.currentData()
@@ -931,6 +1064,36 @@ class SettingsDialog(QDialog):
             )
 
         self.update_ic4_manual_fields()
+
+        if using_ic4:
+            self.apply_ic4_capabilities()
+        else:
+            self.camera_width_spinbox.setRange(
+                160,
+                7680,
+            )
+
+            self.camera_width_spinbox.setSingleStep(
+                1
+            )
+
+            self.camera_height_spinbox.setRange(
+                120,
+                4320,
+            )
+
+            self.camera_height_spinbox.setSingleStep(
+                1
+            )
+
+            self.camera_fps_spinbox.setRange(
+                1.0,
+                300.0,
+            )
+
+            self.camera_fps_spinbox.setSingleStep(
+                0.1
+            )
 
     def update_ic4_manual_fields(self):
         using_ic4 = (

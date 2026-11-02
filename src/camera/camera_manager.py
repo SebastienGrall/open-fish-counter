@@ -449,6 +449,7 @@ class CameraManager:
 
         self._apply_opencv_settings()
         self._read_opencv_settings()
+        self._log_settings_result()
 
         self.logger.info(
             "Caméra OpenCV ouverte | index=%d | "
@@ -472,6 +473,37 @@ class CameraManager:
 
         return True, frame
 
+
+    def _log_settings_result(self):
+        resolution_matches = (
+            self.actual_width == self.requested_width
+            and self.actual_height == self.requested_height
+        )
+
+        if not resolution_matches:
+            self.logger.warning(
+                "Résolution demandée non appliquée | "
+                "demandée=%dx%d | obtenue=%dx%d",
+                self.requested_width,
+                self.requested_height,
+                self.actual_width,
+                self.actual_height,
+            )
+
+        if (
+            self.actual_fps > 0
+            and abs(
+                self.actual_fps
+                - self.requested_fps
+            ) > 0.5
+        ):
+            self.logger.warning(
+                "FPS demandé non appliqué | "
+                "demandé=%.1f | obtenu=%.1f",
+                self.requested_fps,
+                self.actual_fps,
+            )
+
     def _open_ic4(self):
         if not IC4_AVAILABLE:
             self.last_error = (
@@ -486,60 +518,90 @@ class CameraManager:
             devices = self._list_unique_ic4_devices()
 
             if not devices:
-                self.last_error = "Aucune caméra IC4 détectée."
-                self.logger.warning("%s", self.last_error)
+                self.last_error = (
+                    "Aucune caméra IC4 détectée."
+                )
+                self.logger.warning(
+                    "%s",
+                    self.last_error,
+                )
                 return False
 
-            self.ic4_device = self._select_ic4_device(devices)
+            self.ic4_device = (
+                self._select_ic4_device(devices)
+            )
 
             if self.ic4_device is None:
                 available = ", ".join(
-                    device["serial"] for device in devices
+                    device["serial"]
+                    for device in devices
                 )
+
                 self.last_error = (
-                    f"Caméra IC4 de série {self.camera_serial} introuvable. "
+                    f"Caméra IC4 de série "
+                    f"{self.camera_serial} introuvable. "
                     f"Séries disponibles : {available}"
                 )
-                self.logger.warning("%s", self.last_error)
+
+                self.logger.warning(
+                    "%s",
+                    self.last_error,
+                )
                 return False
 
             self.ic4_grabber = ic4.Grabber()
+
             self.ic4_grabber.device_open(
                 self.ic4_device["device_info"]
             )
 
+            # Applique les valeurs demandées après les avoir
+            # alignées sur les contraintes de la caméra.
             self._apply_ic4_settings()
 
+            # Relit les valeurs réellement appliquées.
+            self._read_ic4_settings()
+
             self.ic4_sink = ic4.SnapSink()
+
             self.ic4_grabber.stream_setup(
                 self.ic4_sink,
                 setup_option=(
                     ic4.StreamSetupOption.ACQUISITION_START
                 ),
             )
+
             self.ic4_stream_started = True
 
-            self.actual_width = self.requested_width
-            self.actual_height = self.requested_height
-            self.actual_fps = self._read_ic4_fps()
+            # Compare les valeurs demandées et appliquées.
+            self._log_settings_result()
 
             self.logger.info(
                 "Caméra IC4 ouverte | modèle=%s | série=%s | "
-                "résolution demandée=%dx%d | fps=%.1f",
+                "demandée=%dx%d à %.1f FPS | "
+                "obtenue=%dx%d à %.1f FPS",
                 self.ic4_device["model"],
                 self.ic4_device["serial"],
                 self.requested_width,
                 self.requested_height,
+                self.requested_fps,
+                self.actual_width,
+                self.actual_height,
                 self.actual_fps,
             )
+
             return True
 
         except Exception as error:
-            self.last_error = self._format_error(error)
+            self.last_error = self._format_error(
+                error
+            )
+
             self.logger.exception(
                 "Impossible d'ouvrir la caméra IC4 : %s",
                 self.last_error,
             )
+
             self.close()
             return False
 
@@ -677,12 +739,148 @@ class CameraManager:
 
         return None
 
+    def _read_ic4_settings(self):
+        """
+        Relit les valeurs réellement appliquées par la caméra IC4.
+        """
+        property_map = (
+            self.ic4_grabber.device_property_map
+        )
+
+        try:
+            self.actual_width = int(
+                property_map.get_value_int(
+                    ic4.PropId.WIDTH
+                )
+            )
+
+        except Exception as error:
+            self.actual_width = 0
+
+            self.logger.warning(
+                "Impossible de relire la largeur IC4 : %s",
+                self._format_error(error),
+            )
+
+        try:
+            self.actual_height = int(
+                property_map.get_value_int(
+                    ic4.PropId.HEIGHT
+                )
+            )
+
+        except Exception as error:
+            self.actual_height = 0
+
+            self.logger.warning(
+                "Impossible de relire la hauteur IC4 : %s",
+                self._format_error(error),
+            )
+
+        try:
+            self.actual_fps = float(
+                property_map.get_value_float(
+                    ic4.PropId.ACQUISITION_FRAME_RATE
+                )
+            )
+
+        except Exception as error:
+            self.actual_fps = self.requested_fps
+
+            self.logger.warning(
+                "Impossible de relire les FPS IC4 : %s",
+                self._format_error(error),
+            )
+
     def _apply_ic4_settings(self):
-        property_map = self.ic4_grabber.device_property_map
+        property_map = (
+            self.ic4_grabber.device_property_map
+        )
+
+        requested_width = self.requested_width
+        requested_height = self.requested_height
+
+        try:
+            width_property = (
+                property_map.find_integer(
+                    ic4.PropId.WIDTH
+                )
+            )
+
+            requested_width = (
+                self._align_integer_property_value(
+                    value=self.requested_width,
+                    minimum=width_property.minimum,
+                    maximum=width_property.maximum,
+                    increment=width_property.increment,
+                )
+            )
+
+            if requested_width != self.requested_width:
+                self.logger.warning(
+                    "Largeur IC4 ajustée à une valeur valide | "
+                    "demandée=%d | ajustée=%d | "
+                    "minimum=%d | maximum=%d | pas=%d",
+                    self.requested_width,
+                    requested_width,
+                    int(width_property.minimum),
+                    int(width_property.maximum),
+                    int(width_property.increment),
+                )
+
+        except Exception as error:
+            self.logger.warning(
+                "Impossible de déterminer les contraintes "
+                "de largeur IC4 : %s",
+                self._format_error(error),
+            )
+
+        try:
+            height_property = (
+                property_map.find_integer(
+                    ic4.PropId.HEIGHT
+                )
+            )
+
+            requested_height = (
+                self._align_integer_property_value(
+                    value=self.requested_height,
+                    minimum=height_property.minimum,
+                    maximum=height_property.maximum,
+                    increment=height_property.increment,
+                )
+            )
+
+            if requested_height != self.requested_height:
+                self.logger.warning(
+                    "Hauteur IC4 ajustée à une valeur valide | "
+                    "demandée=%d | ajustée=%d | "
+                    "minimum=%d | maximum=%d | pas=%d",
+                    self.requested_height,
+                    requested_height,
+                    int(height_property.minimum),
+                    int(height_property.maximum),
+                    int(height_property.increment),
+                )
+
+        except Exception as error:
+            self.logger.warning(
+                "Impossible de déterminer les contraintes "
+                "de hauteur IC4 : %s",
+                self._format_error(error),
+            )
 
         settings = (
-            (ic4.PropId.WIDTH, self.requested_width, "largeur"),
-            (ic4.PropId.HEIGHT, self.requested_height, "hauteur"),
+            (
+                ic4.PropId.WIDTH,
+                requested_width,
+                "largeur",
+            ),
+            (
+                ic4.PropId.HEIGHT,
+                requested_height,
+                "hauteur",
+            ),
             (
                 ic4.PropId.ACQUISITION_FRAME_RATE,
                 self.requested_fps,
@@ -692,10 +890,15 @@ class CameraManager:
 
         for property_id, value, label in settings:
             try:
-                property_map.set_value(property_id, value)
+                property_map.set_value(
+                    property_id,
+                    value,
+                )
+
             except Exception as error:
                 self.logger.warning(
-                    "Réglage IC4 non appliqué | %s=%s | %s",
+                    "Réglage IC4 non appliqué | "
+                    "%s=%s | %s",
                     label,
                     value,
                     self._format_error(error),
@@ -704,6 +907,7 @@ class CameraManager:
         self._apply_ic4_exposure_settings(
             property_map
         )
+
         self._apply_ic4_gain_settings(
             property_map
         )
@@ -797,15 +1001,6 @@ class CameraManager:
                 self._format_error(error),
             )
 
-    def _read_ic4_fps(self):
-        try:
-            value = self.ic4_grabber.device_property_map.get_value(
-                ic4.PropId.ACQUISITION_FRAME_RATE
-            )
-            return float(value)
-        except Exception:
-            return self.requested_fps
-
     def _apply_opencv_settings(self):
         self.capture.set(
             cv2.CAP_PROP_FRAME_WIDTH,
@@ -858,3 +1053,166 @@ class CameraManager:
             return cv2.CAP_V4L2
 
         return None
+
+    def get_camera_capabilities(self):
+        capabilities = {
+            "backend": self.camera_backend,
+            "resolution_constraints_available": False,
+            "width": None,
+            "height": None,
+            "fps": None,
+        }
+
+        if (
+            self.camera_backend != self.BACKEND_IC4
+            or self.ic4_grabber is None
+        ):
+            return capabilities
+
+        property_map = (
+            self.ic4_grabber.device_property_map
+        )
+
+        # Largeur IC4.
+        try:
+            width_property = (
+                property_map.find_integer(
+                    ic4.PropId.WIDTH
+                )
+            )
+
+            capabilities["width"] = {
+                "minimum": int(
+                    width_property.minimum
+                ),
+                "maximum": int(
+                    width_property.maximum
+                ),
+                "increment": max(
+                    1,
+                    int(width_property.increment),
+                ),
+                "value": int(
+                    property_map.get_value_int(
+                        ic4.PropId.WIDTH
+                    )
+                ),
+            }
+
+        except Exception as error:
+            self.logger.warning(
+                "Impossible de lire les capacités "
+                "de largeur IC4 : %s",
+                self._format_error(error),
+            )
+
+        # Hauteur IC4.
+        try:
+            height_property = (
+                property_map.find_integer(
+                    ic4.PropId.HEIGHT
+                )
+            )
+
+            capabilities["height"] = {
+                "minimum": int(
+                    height_property.minimum
+                ),
+                "maximum": int(
+                    height_property.maximum
+                ),
+                "increment": max(
+                    1,
+                    int(height_property.increment),
+                ),
+                "value": int(
+                    property_map.get_value_int(
+                        ic4.PropId.HEIGHT
+                    )
+                ),
+            }
+
+        except Exception as error:
+            self.logger.warning(
+                "Impossible de lire les capacités "
+                "de hauteur IC4 : %s",
+                self._format_error(error),
+            )
+
+        # Fréquence IC4.
+        try:
+            fps_property = (
+                property_map.find_float(
+                    ic4.PropId.ACQUISITION_FRAME_RATE
+                )
+            )
+
+            # Certaines caméras IC4, dont cette DMK,
+            # n'implémentent pas l'incrément des FPS.
+            fps_increment = 0.1
+
+            capabilities["fps"] = {
+                "minimum": float(
+                    fps_property.minimum
+                ),
+                "maximum": float(
+                    fps_property.maximum
+                ),
+                "increment": fps_increment,
+                "value": float(
+                    property_map.get_value_float(
+                        ic4.PropId.ACQUISITION_FRAME_RATE
+                    )
+                ),
+            }
+
+        except Exception as error:
+            self.logger.warning(
+                "Impossible de lire les capacités "
+                "FPS IC4 : %s",
+                self._format_error(error),
+            )
+
+        capabilities[
+            "resolution_constraints_available"
+        ] = (
+            capabilities["width"] is not None
+            and capabilities["height"] is not None
+        )
+
+        return capabilities
+
+    @staticmethod
+    def _align_integer_property_value(
+        value,
+        minimum,
+        maximum,
+        increment,
+    ):
+        value = int(value)
+        minimum = int(minimum)
+        maximum = int(maximum)
+        increment = max(
+            1,
+            int(increment),
+        )
+
+        value = max(
+            minimum,
+            min(maximum, value),
+        )
+
+        step_count = round(
+            (value - minimum)
+            / increment
+        )
+
+        aligned_value = (
+            minimum
+            + step_count * increment
+        )
+
+        return max(
+            minimum,
+            min(maximum, aligned_value),
+        )

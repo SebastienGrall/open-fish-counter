@@ -1239,6 +1239,14 @@ class MainWindow(QMainWindow):
             .get_available_ic4_devices()
         )
 
+        actual_settings = (
+            self.camera_manager.get_actual_settings()
+        )
+
+        camera_capabilities = (
+            self.camera_manager.get_camera_capabilities()
+        )
+
         if timer_was_active:
             self.logger.debug(
                 "Suspension de l'acquisition pendant "
@@ -1284,6 +1292,12 @@ class MainWindow(QMainWindow):
                 camera_width=self.camera_width,
                 camera_height=self.camera_height,
                 camera_fps=self.camera_fps,
+
+                camera_actual_width=actual_settings["width"],
+                camera_actual_height=actual_settings["height"],
+                camera_actual_fps=actual_settings["fps"],
+                camera_capabilities=camera_capabilities,
+
                 camera_exposure_auto=(
                     self.camera_exposure_auto
                 ),
